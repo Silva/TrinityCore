@@ -146,21 +146,21 @@ include_directories(
 
 set(worldserver_LINK_FLAGS "")
 
-add_executable(worldserver ${worldserver_SRCS})
+add_executable(interrealm ${worldserver_SRCS})
 
 if( NOT WIN32 )
-  add_definitions(-D_TRINITY_CORE_CONFIG='"${CONF_DIR}/worldserver.conf"')
+  add_definitions(-D_TRINITY_CORE_CONFIG='"${CONF_DIR}/interrealm.conf"')
 endif()
 
-add_dependencies(worldserver revision.h)
+add_dependencies(interrealm revision.h)
 
 if( UNIX )
   set(worldserver_LINK_FLAGS "-pthread -lncurses ${worldserver_LINK_FLAGS}")
 endif()
 
-set_target_properties(worldserver PROPERTIES LINK_FLAGS "${worldserver_LINK_FLAGS}")
+set_target_properties(interrealm PROPERTIES LINK_FLAGS "${worldserver_LINK_FLAGS}")
 
-target_link_libraries(worldserver
+target_link_libraries(interrealm
   game
   shared
   scripts
@@ -179,25 +179,25 @@ target_link_libraries(worldserver
 )
 
 if( WIN32 )
-  add_custom_command(TARGET worldserver
+  add_custom_command(TARGET interrealm
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/worldserver.conf.dist ${CMAKE_BINARY_DIR}/bin/$(ConfigurationName)/
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/interrealm.conf.dist ${CMAKE_BINARY_DIR}/bin/$(ConfigurationName)/
   )
 endif()
 
 if( UNIX )
-  install(TARGETS worldserver DESTINATION bin)
-  install(FILES worldserver.conf.dist DESTINATION etc)
+  install(TARGETS interrealm DESTINATION bin)
+  install(FILES interrealm.conf.dist DESTINATION etc)
 elseif( WIN32 )
-  install(TARGETS worldserver DESTINATION "${CMAKE_INSTALL_PREFIX}")
-  install(FILES worldserver.conf.dist DESTINATION "${CMAKE_INSTALL_PREFIX}")
+  install(TARGETS interrealm DESTINATION "${CMAKE_INSTALL_PREFIX}")
+  install(FILES interrealm.conf.dist DESTINATION "${CMAKE_INSTALL_PREFIX}")
 endif()
 
 # Generate precompiled header
 if( USE_COREPCH )
   if(CMAKE_COMPILER_IS_GNUCXX)
-    add_precompiled_header(worldserver ${CMAKE_CURRENT_SOURCE_DIR}/PrecompiledHeaders/worldPCH.h)
+    add_precompiled_header(interrealm ${CMAKE_CURRENT_SOURCE_DIR}/PrecompiledHeaders/worldPCH.h)
   elseif(MSVC)
-    add_native_precompiled_header(worldserver ${CMAKE_CURRENT_SOURCE_DIR}/PrecompiledHeaders/worldPCH)
+    add_native_precompiled_header(interrealm ${CMAKE_CURRENT_SOURCE_DIR}/PrecompiledHeaders/worldPCH)
   endif()
 endif()
