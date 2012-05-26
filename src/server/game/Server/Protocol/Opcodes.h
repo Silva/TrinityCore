@@ -1368,12 +1368,20 @@ enum PacketProcessing
 
 class WorldPacket;
 
+enum IRPacketProcessing
+{
+	PROCESS_LOCAL = 0,
+	PROCESS_ALWAYS_DISTANT = 1,
+	PROCESS_DISTANT_IF_NEED = 2
+},
+
 struct OpcodeHandler
 {
     char const* name;
     SessionStatus status;
     PacketProcessing packetProcessing;
     void (WorldSession::*handler)(WorldPacket& recvPacket);
+    IRPacketProcessing forwardToIR;
 };
 
 extern OpcodeHandler opcodeTable[NUM_MSG_TYPES];
