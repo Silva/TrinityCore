@@ -23,6 +23,7 @@
 #include <ace/Sig_Handler.h>
 
 #include "Common.h"
+#include "InterRealm/InterRealmSocketHandler.h"
 #include "SystemConfig.h"
 #include "SignalHandler.h"
 #include "World.h"
@@ -271,10 +272,14 @@ int Master::Run()
 
     sLog->outString("%s (worldserver-daemon) ready...", _FULLVERSION);
 
+	ACE_Based::Thread interrealm_thread(new InterRealmSocket);
+    interrealm_thread.setPriority(ACE_Based::Highest);
+    interrealm_thread.wait();
     // when the main thread closes the singletons get unloaded
     // since worldrunnable uses them, it will crash if unloaded after master
     world_thread.wait();
     rar_thread.wait();
+    
 
     if (soap_thread)
     {
