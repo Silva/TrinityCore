@@ -6,7 +6,7 @@
 
 #define INTERREALM_PORT		12541
 
-typedef std::list<InterRealmClient*> mIRClients;
+typedef std::vector<InterRealmClient*> mIRClients;
 
 class InterRealmSocket: public ACE_Based::Runnable
 {
@@ -14,6 +14,8 @@ class InterRealmSocket: public ACE_Based::Runnable
 		InterRealmSocket();
 		~InterRealmSocket();
 		void run();
+		void deleteClient(InterRealmClient* client);
+		void printClientList();
 	private:
 		void createClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize);
 		bool m_err;

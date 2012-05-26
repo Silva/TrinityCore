@@ -3,8 +3,6 @@
 
 InterRealmSocket::InterRealmSocket()
 {
-	this->m_clients.clear();
-	
 	this->m_err = false;
 	int sock_err = 0;
 
@@ -45,6 +43,7 @@ void InterRealmSocket::run()
 	if(this->m_err)
 	{
 		sLog->outError("Unable to listen InterRealm, must stop !!");
+		World::StopNow(10);
 		return;
 	}
 	
@@ -60,9 +59,23 @@ void InterRealmSocket::run()
 	}
 }
 
+void InterRealmSocket::printClientList()
+{
+	mIRClients::iterator itclient;
+	sLog->outString("#---Address---|---Port---|---SocketId---#");
+	for(itclient = m_clients.begin(); itclient < m_clients.end(); ++itclient)
+		(*it)->printInfos();
+	sLog->outString("#---------------------------------------#");
+}
+
 void InterRealmSocket::createClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize)
 {
-	InterRealmClient* client = new InterRealmClient(sock, sin, rsize);
+	InterRealmClient* client = new InterRealmClient(sock, sin, rsize, this);
 	ACE_Based::Thread client_thread(client);
-	this->m_clients.push_back(client);
+	m_clients.push_back(client);
+}
+
+void InterRealmSocket::deleteClient(InterRealmClient* client)
+{
+	m_clients.remove(client);
 }
