@@ -23,6 +23,13 @@
 
 #define INTERREALM_PORT		12541
 
+enum irHeloResp
+{
+	IR_HELO_RESP_OK						= 0,
+	IR_HELO_RESP_POLITE					= 1,
+	IR_HELO_RESP_PROTOCOL_MISMATCH		= 2,
+};
+
 class InterRealmTunnel: public ACE_Based::Runnable
 {
 	public:
@@ -36,17 +43,22 @@ class InterRealmTunnel: public ACE_Based::Runnable
 		 *  Handlers
 		 */
 		 
+		 void Handle_Hello(WorldPacket& packet);
+		 void Handle_WhoIam(WorldPacket& packet);
+		 
 		 void Handle_Unhandled(WorldPacket& recvPacket);
 		 void Handle_Null(WorldPacket& recvPacket);
 		 void Handle_ClientSide(WorldPacket& recvPacket) { }
 		 void SendPacket(WorldPacket const* packet);
 	private:
 		
+		bool m_tunnel_open;
 		// Socket, UDP maybe ?
 		SOCKET m_sock;
 		SOCKADDR_IN m_sin;
 		socklen_t recsize;
 		bool m_force_stop;
+		uint8 m_rand;
 };
 
 #endif
