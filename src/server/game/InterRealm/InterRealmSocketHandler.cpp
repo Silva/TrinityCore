@@ -78,7 +78,7 @@ void InterRealmSocket::createClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsiz
 void InterRealmSocket::deleteClient(InterRealmClient* client)
 {
 	mIRClients::iterator itclient = m_clients.begin();
-	for(; itclient != m_clients.end() && (*itclient) != client; ++itclient);
+	/*for(; itclient != m_clients.end() && (*itclient) != client; ++itclient);
 	if(itclient != m_clients.end())
-		m_clients.erase(itclient);
+		m_clients.erase(itclient);*/
 }

@@ -39,7 +39,6 @@ void InterRealmClient::run()
 	while(!World::IsStopped() && m_force_close == false) {
 		char buffer[10240] = "";
 		int byteRecv = recv(csock, buffer, 10240, 0);
-		sLog->outString("byteRecv %d",byteRecv);
 		if(byteRecv != SOCKET_ERROR && byteRecv != 0) {
 			if(byteRecv > 1) {
 				// Create packet
@@ -47,7 +46,7 @@ void InterRealmClient::run()
 
 				for(int i=2;i<byteRecv;i++)
 					*packet << (uint8)buffer[i];
-				
+				sLog->outDetail("Packet recv with opcode %u",packet->GetOpcode());
 				// Handle Packet
 				if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
 				{
@@ -80,7 +79,7 @@ void InterRealmClient::run()
 		else
 			m_force_close = true;
 	}
-	sLog->outString("Closing connection with %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
+	sLog->outDetail("Closing connection with %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
 	if(csock != INVALID_SOCKET)
 		close(csock);
 	ssock->deleteClient(this);
@@ -94,6 +93,8 @@ void InterRealmClient::Handle_WhoIam(WorldPacket &packet)
 	packet >> realmId; 
 	packet >> realmuser; // Unhandled for now
 	packet >> realmpwd; // Unhandled for now
+	
+	sLog->outDetail("Handle_WhoIam realmID %d user %s password %s",realmId,realmuser.c_str(),realmpwd.c_str());
 	
 	WorldPacket pck(IR_SMSG_WHOIAM_ACK,1);
 	if(realmId < 1)
@@ -136,7 +137,7 @@ void InterRealmClient::Handle_Hello(WorldPacket& packet)
 	pck << _rand; // Return same random number
 	pck << (non_polite ? IR_HELO_RESP_POLITE : (protocol_mismatch ? IR_HELO_RESP_PROTOCOL_MISMATCH : IR_HELO_RESP_OK));
 	
-	SendPacket(&packet);
+	SendPacket(&pck);
 	
 	if(non_polite || protocol_mismatch)
 	{
