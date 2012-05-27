@@ -1372,8 +1372,9 @@ enum IRPacketProcessing
 {
 	PROCESS_LOCAL = 0,
 	PROCESS_ALWAYS_DISTANT = 1,
-	PROCESS_DISTANT_IF_NEED = 2
-},
+	PROCESS_DISTANT_IF_NEED = 2,
+	PROCESS_COPY_DISTANT = 3
+};
 
 struct OpcodeHandler
 {

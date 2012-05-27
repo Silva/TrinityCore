@@ -112,6 +112,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/src/server/game/Guilds
   ${CMAKE_SOURCE_DIR}/src/server/game/Handlers
   ${CMAKE_SOURCE_DIR}/src/server/game/Instances
+  ${CMAKE_SOURCE_DIR}/src/server/game/InterRealm
   ${CMAKE_SOURCE_DIR}/src/server/game/LookingForGroup
   ${CMAKE_SOURCE_DIR}/src/server/game/Loot
   ${CMAKE_SOURCE_DIR}/src/server/game/Mails

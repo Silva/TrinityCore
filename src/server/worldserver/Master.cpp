@@ -23,6 +23,7 @@
 #include <ace/Sig_Handler.h>
 
 #include "Common.h"
+#include "InterRealm/InterRealmTunnel.h"
 #include "SystemConfig.h"
 #include "SignalHandler.h"
 #include "World.h"
@@ -269,11 +270,15 @@ int Master::Run()
     // set server online (allow connecting now)
     LoginDatabase.DirectPExecute("UPDATE realmlist SET flag = flag & ~%u, population = 0 WHERE id = '%u'", REALM_FLAG_INVALID, realmID);
 
+	ACE_Based::Thread interrealm_thread(new InterRealmTunnel);
+    interrealm_thread.setPriority(ACE_Based::Highest);
+    
     sLog->outString("%s (worldserver-daemon) ready...", _FULLVERSION);
 
     // when the main thread closes the singletons get unloaded
     // since worldrunnable uses them, it will crash if unloaded after master
     world_thread.wait();
+    interrealm_thread.wait();
     rar_thread.wait();
 
     if (soap_thread)
