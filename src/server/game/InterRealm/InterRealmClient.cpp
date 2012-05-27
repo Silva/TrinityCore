@@ -45,15 +45,14 @@ void InterRealmClient::run()
 				// Create packet
 				WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
 
-				for(int i=2;i<strlen(buffer);i++)
-					packet->append((uint8)buffer[i]);
+				for(int i=2;i<byteRecv;i++)
+					*packet << (uint8)buffer[i];
 				
 				// Handle Packet
 				if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
 				{
 					IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
 					(this->*IRopHandle.handler)(*packet);
-					
 				}
 				else
 					this->Handle_Unhandled(*packet);
@@ -74,6 +73,21 @@ void InterRealmClient::run()
 	ssock->deleteClient(this);
 }
 
+void InterRealmClient::Handle_Hello(WorldPacket& packet)
+{
+	std::string hello;
+	uint8 _rand,_compress,protocolVer,protocolSubVer;
+	
+	packet >> hello;
+	packet >> _rand;
+	packet >> _compress;
+	packet >> protocolVer;
+	packet >> protocolSubVer;
+	
+	sLog->outString("Hello received from %s:%d (compress %u) Protocol version %u.%u",inet_ntoa(csin.sin_addr), htons(csin.sin_port),
+		_compress,protocolVer,protocolSubVer);
+}
+
 void InterRealmClient::printInfos()
 {
 	sLog->outString("|-%s-|---%d---|---%d---|",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
@@ -81,12 +95,10 @@ void InterRealmClient::printInfos()
 
 void InterRealmClient::Handle_Unhandled(WorldPacket& recvPacket)
 {
-	sLog->outError("[WARN] Packet with Invalid IROpcode %u received !",recvPacket.GetOpcode());
+	sLog->outError("[WARN] Unhandled Packet with IROpcode %u received !",recvPacket.GetOpcode());
 }
 
 void InterRealmClient::Handle_Null(WorldPacket& recvPacket)
 {
-	sLog->outDetail("Handle_Null");
-	//recvPacket->hexlike();
-	sLog->outString("packet Opcode %u Content %s",recvPacket.GetOpcode(),recvPacket.contents());
+	sLog->outError("[WARN] Packet with Invalid IROpcode %u received !",recvPacket.GetOpcode());
 }

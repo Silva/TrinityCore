@@ -36,9 +36,12 @@ class InterRealmClient: public ACE_Based::Runnable
 		/*
 		 *  Handlers
 		 */
+		 void Handle_Hello(WorldPacket& recvPacket);
 		 
+		 //
 		 void Handle_Unhandled(WorldPacket& recvPacket);
 		 void Handle_Null(WorldPacket& recvPacket);
+		 void Handle_ServerSide(WorldPacket& recvPacket) { }
 	private:
 		
 		char* serverAddr;

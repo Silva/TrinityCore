@@ -43,6 +43,4 @@ struct IROpcodeHandler
 
 extern IROpcodeHandler IRopcodeTable[IR_NUM_MSG_TYPES];
 
-
-
 #endif
