@@ -46,7 +46,6 @@ void InterRealmTunnel::run()
 		m_sin.sin_addr.s_addr = inet_addr("127.0.0.1");
 		m_sin.sin_family = AF_INET;
 		m_sin.sin_port = htons(INTERREALM_PORT);
-	
 		int m_err = connect(m_sock, (SOCKADDR*)&m_sin, sizeof(m_sin));
 		if(m_err == SOCKET_ERROR)
 		{
