@@ -21,13 +21,13 @@
 #include "InterRealmSocketHandler.h"
 #include "World.h"
 
-InterRealmClient::InterRealmClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize, InterRealmSocket* ssock)
+InterRealmClient::InterRealmClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize, InterRealmSocket* ssock): m_realRealmId(0), m_realmId(0),
+m_tunnel_allowed(false), m_force_close(false)
 {
 	csock = sock;
 	csin = sin;
 	recsize = rsize;
 	ssock = ssock;
-	m_force_close = false;
 }
 
 InterRealmClient::~InterRealmClient()
@@ -36,7 +36,7 @@ InterRealmClient::~InterRealmClient()
 
 void InterRealmClient::run()
 {
-	while(!World::IsStopped() && csock != INVALID_SOCKET && m_force_close == false) {
+	while(!World::IsStopped() && m_force_close == false) {
 		char buffer[10240] = "";
 		int byteRecv = recv(csock, buffer, 10240, 0);
 		sLog->outString("byteRecv %d",byteRecv);
@@ -51,8 +51,21 @@ void InterRealmClient::run()
 				// Handle Packet
 				if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
 				{
-					IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
-					(this->*IRopHandle.handler)(*packet);
+					try
+					{
+						IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
+						(this->*IRopHandle.handler)(*packet);
+					}
+					catch(ByteBufferException &)
+					{
+						sLog->outError("[FATAL] InterRealmClient ByteBufferException occured while parsing a packet (opcode: %u) from InterRealm Server. Skipped packet.",
+								packet->GetOpcode());
+						if (sLog->IsOutDebug())
+						{
+							sLog->outDebug(LOG_FILTER_NETWORKIO, "Dumping error causing packet:");
+							packet->hexlike();
+						}
+					}				
 				}
 				else
 					this->Handle_Unhandled(*packet);
@@ -73,18 +86,68 @@ void InterRealmClient::run()
 	ssock->deleteClient(this);
 }
 
+void InterRealmClient::Handle_WhoIam(WorldPacket &packet)
+{
+	int realmId;
+	std::string realmuser, realmpwd;
+	
+	packet >> realmId; 
+	packet >> realmuser; // Unhandled for now
+	packet >> realmpwd; // Unhandled for now
+	
+	WorldPacket pck(IR_SMSG_WHOIAM_ACK,1);
+	if(realmId < 1)
+	{
+		pck << (uint8)1;
+		m_force_close = true;
+	}
+	else
+	{
+		pck << (uint8)0;
+		m_realRealmId = realmId;
+	}
+	
+	SendPacket(&pck);
+}
+
 void InterRealmClient::Handle_Hello(WorldPacket& packet)
 {
 	std::string hello;
-	uint8 _rand,_compress,protocolVer,protocolSubVer;
+	uint8 _rand,_compress,_encrypt,protocolVer,protocolSubVer;
 	
 	packet >> hello;
 	packet >> _rand;
 	packet >> _compress;
+	packet >> _encrypt;
 	packet >> protocolVer;
 	packet >> protocolSubVer;
 	
-	sLog->outString("Hello received from %s:%d (compress %u) Protocol version %u.%u",inet_ntoa(csin.sin_addr), htons(csin.sin_port),
+	bool non_polite = false, protocol_mismatch = false;
+
+	if(strcmp(hello.c_str(),"HELO") != 0)
+		non_polite = true;
+		
+	if(protocolVer > IR_PROTOCOL_VERSION || protocolSubVer > IR_PROTOCOL_SUBVERSION ||
+	_compress > IR_PROTOCOL_COMPRESS || _encrypt > IR_PROTOCOL_ENCRYPT)
+		protocol_mismatch = true;
+	
+	WorldPacket pck(IR_SMSG_HELLO,10+1+1);
+	pck << std::string("HELO"); // Polite
+	pck << _rand; // Return same random number
+	pck << (non_polite ? IR_HELO_RESP_POLITE : (protocol_mismatch ? IR_HELO_RESP_PROTOCOL_MISMATCH : IR_HELO_RESP_OK));
+	
+	SendPacket(&packet);
+	
+	if(non_polite || protocol_mismatch)
+	{
+		m_force_close = true;
+		if(non_polite)
+			sLog->outError("Non-polite server on %s:%d, rejecting",inet_ntoa(csin.sin_addr), htons(csin.sin_port));
+		if(protocol_mismatch)
+			sLog->outError("Protocol mismatch on %s:%d, rejecting",inet_ntoa(csin.sin_addr), htons(csin.sin_port));
+	}
+	else
+		sLog->outString("Hello received from %s:%d (compress %u) Protocol version %u.%u",inet_ntoa(csin.sin_addr), htons(csin.sin_port),
 		_compress,protocolVer,protocolSubVer);
 }
 
@@ -101,4 +164,27 @@ void InterRealmClient::Handle_Unhandled(WorldPacket& recvPacket)
 void InterRealmClient::Handle_Null(WorldPacket& recvPacket)
 {
 	sLog->outError("[WARN] Packet with Invalid IROpcode %u received !",recvPacket.GetOpcode());
+}
+
+void InterRealmClient::SendPacket(WorldPacket const* packet)
+{
+	if(packet == NULL || csock == INVALID_SOCKET)
+		return;
+	
+	char* buffer = (char*)malloc((packet->size()+2)*sizeof(char));
+	bzero(buffer,packet->size()+2);
+	if(buffer == NULL)
+		return;
+
+	uint8 u8low = packet->GetOpcode() & 0xFF;
+	uint8 u8high = (packet->GetOpcode() >> 8) & 0xFF;
+
+	buffer[0] = u8low;
+	buffer[1] = u8high;
+
+	for(int i=0;i<packet->size();i++)
+		buffer[i+2] = packet->contents()[i];
+	
+	send(csock,buffer,packet->size()+2,0);
+	free(buffer);
 }

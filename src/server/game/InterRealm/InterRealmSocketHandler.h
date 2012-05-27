@@ -4,7 +4,11 @@
 #include "InterRealm_defs.h"
 #include "InterRealmClient.h"
 
-#define INTERREALM_PORT		12541
+#define INTERREALM_PORT				12541
+#define IR_PROTOCOL_VERSION			1
+#define IR_PROTOCOL_SUBVERSION		0
+#define IR_PROTOCOL_COMPRESS		0
+#define IR_PROTOCOL_ENCRYPT			0
 
 typedef std::vector<InterRealmClient*> mIRClients;
 

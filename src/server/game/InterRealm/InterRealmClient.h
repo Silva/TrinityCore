@@ -21,6 +21,13 @@
 
 #include "InterRealm_defs.h"
 
+enum irHeloResp
+{
+	IR_HELO_RESP_OK						= 0,
+	IR_HELO_RESP_POLITE					= 1,
+	IR_HELO_RESP_PROTOCOL_MISMATCH		= 2,
+};
+
 class InterRealmSocket;
 
 class InterRealmClient: public ACE_Based::Runnable
@@ -37,23 +44,27 @@ class InterRealmClient: public ACE_Based::Runnable
 		 *  Handlers
 		 */
 		 void Handle_Hello(WorldPacket& recvPacket);
+		 void Handle_WhoIam(WorldPacket &packet);
 		 
 		 //
 		 void Handle_Unhandled(WorldPacket& recvPacket);
 		 void Handle_Null(WorldPacket& recvPacket);
 		 void Handle_ServerSide(WorldPacket& recvPacket) { }
+		 
+		 // Packet
+		 void SendPacket(WorldPacket const* packet);
 	private:
-		
-		char* serverAddr;
-		uint16_t serverPort;
-		uint16_t realServerId;
-		uint32_t serverId;
+	
+		// Realmlist
+		int m_realRealmId;
+		int m_realmId;
 		
 		// Socket, UDP maybe ?
 		SOCKET csock;
 		SOCKADDR_IN csin;
 		socklen_t recsize;
 		InterRealmSocket* ssock;
+		bool m_tunnel_allowed;
 		bool m_force_close;
 };
 #endif
