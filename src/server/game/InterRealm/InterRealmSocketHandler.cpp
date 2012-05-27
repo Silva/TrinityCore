@@ -3,44 +3,44 @@
 
 InterRealmSocket::InterRealmSocket()
 {
-	this->m_err = false;
+	m_err = false;
 	int sock_err = 0;
 
-    this->ir_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if(this->ir_sock == INVALID_SOCKET)
+    ir_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if(ir_sock == INVALID_SOCKET)
     {
-		this->m_err = true;
+		m_err = true;
 		return;
 	}
 
-	this->ir_sin.sin_addr.s_addr    = htonl(INADDR_ANY);
-	this->ir_sin.sin_family         = AF_INET;
-	this->ir_sin.sin_port           = htons(INTERREALM_PORT);
+	ir_sin.sin_addr.s_addr    = htonl(INADDR_ANY);
+	ir_sin.sin_family         = AF_INET;
+	ir_sin.sin_port           = htons(INTERREALM_PORT);
 	
-	sock_err = bind(this->ir_sock, (SOCKADDR*)&(this->ir_sin), sizeof(this->ir_sin));
+	sock_err = bind(ir_sock, (SOCKADDR*)&(ir_sin), sizeof(ir_sin));
 	if(sock_err == SOCKET_ERROR)
 	{
-		this->m_err = true;
+		m_err = true;
 		return;
 	}
 		
-	sock_err = listen(this->ir_sock, 15);
+	sock_err = listen(ir_sock, 15);
 	if(sock_err == SOCKET_ERROR)
 	{
-		this->m_err = true;
+		m_err = true;
 		return;
 	}
 }
 
 InterRealmSocket::~InterRealmSocket()
 {
-	if(this->m_err)
-		close(this->ir_sock);
+	if(!m_err)
+		close(ir_sock);
 }
 
 void InterRealmSocket::run()
 {
-	if(this->m_err)
+	if(m_err)
 	{
 		sLog->outError("Unable to listen InterRealm, must stop !!");
 		World::StopNow(10);
@@ -64,7 +64,7 @@ void InterRealmSocket::printClientList()
 	mIRClients::iterator itclient;
 	sLog->outString("#---Address---|---Port---|---SocketId---#");
 	for(itclient = m_clients.begin(); itclient < m_clients.end(); ++itclient)
-		(*it)->printInfos();
+		(*itclient)->printInfos();
 	sLog->outString("#---------------------------------------#");
 }
 
@@ -77,5 +77,7 @@ void InterRealmSocket::createClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsiz
 
 void InterRealmSocket::deleteClient(InterRealmClient* client)
 {
-	m_clients.remove(client);
+	//mIRClients::iterator itclient;
+	//for(itclient = m_clients.begin(); itclient < m_clients.end() && (*itclient) != client; ++itclient);
+	//m_clients.erase(itclient);
 }

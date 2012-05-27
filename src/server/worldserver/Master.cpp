@@ -270,14 +270,16 @@ int Master::Run()
     // set server online (allow connecting now)
     LoginDatabase.DirectPExecute("UPDATE realmlist SET flag = flag & ~%u, population = 0 WHERE id = '%u'", REALM_FLAG_INVALID, realmID);
 
-    sLog->outString("%s (worldserver-daemon) ready...", _FULLVERSION);
-
 	ACE_Based::Thread interrealm_thread(new InterRealmSocket);
     interrealm_thread.setPriority(ACE_Based::Highest);
-    interrealm_thread.wait();
+    
+    sLog->outString("%s (worldserver-daemon) ready...", _FULLVERSION);
+
+	
     // when the main thread closes the singletons get unloaded
     // since worldrunnable uses them, it will crash if unloaded after master
     world_thread.wait();
+    interrealm_thread.wait();
     rar_thread.wait();
     
 
