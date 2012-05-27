@@ -19,11 +19,14 @@
 #include "InterRealmOpcodes.h"
 
 IROpcodeHandler IRopcodeTable[IR_NUM_MSG_TYPES] = {
-	{"IR_CMSG_HELLO",				&InterRealmTunnel::Handle_Null	},
-	{"IR_SMSG_HELLO",				&InterRealmTunnel::Handle_Null	},
-	{"IR_CMSG_TUNNEL_PACKET",		&InterRealmTunnel::Handle_Null	},
-	{"IR_SMSG_TUNNEL_PACKET",		&InterRealmTunnel::Handle_Null	},
-	
-	{"IR_TEST",						&InterRealmTunnel::Handle_Null	},
+	{"IR_CMSG_HELLO",					&InterRealmTunnel::Handle_ClientSide	},
+	{"IR_SMSG_HELLO",					&InterRealmTunnel::Handle_Null			},
+	{"IR_CMSG_TUNNEL_PACKET",			&InterRealmTunnel::Handle_ClientSide	},
+	{"IR_SMSG_TUNNEL_PACKET",			&InterRealmTunnel::Handle_Null			},
+	{"IR_CMSG_WHOIAM",					&InterRealmTunnel::Handle_ClientSide	},
+	{"IR_SMSG_WHOIAM_RESP",				&InterRealmTunnel::Handle_Null			},
+	{"IR_CMSG_REGISTER_PLAYER",			&InterRealmTunnel::Handle_ClientSide	},
+	{"IR_SMSG_REGISTER_PLAYER_RESP",	&InterRealmTunnel::Handle_Null			},
 };
+
 

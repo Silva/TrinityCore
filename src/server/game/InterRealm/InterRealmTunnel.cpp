@@ -33,61 +33,68 @@ InterRealmTunnel::~InterRealmTunnel()
 
 void InterRealmTunnel::run()
 {
-	m_sock = socket(AF_INET, SOCK_STREAM, 0);
-	if(m_sock == INVALID_SOCKET)
+	while(!World::IsStopped())
 	{
-		sLog->outError("Unable to create InterRealm Socket, must stop !!");
-		World::StopNow(10);
-		return;
-	}
-	
-	m_sin.sin_addr.s_addr = inet_addr("127.0.0.1");
-	m_sin.sin_family = AF_INET;
-	m_sin.sin_port = htons(INTERREALM_PORT);
-	
-	int m_err = connect(m_sock, (SOCKADDR*)&m_sin, sizeof(m_sin));
-	if(m_err == SOCKET_ERROR)
-	{
-		sLog->outError("Unable to connect to InterRealm Server...");
-		return;
-	}
-	
-	WorldPacket* packet = new WorldPacket(65);
-	*packet << "123456toto";
-	SendPacket(packet);
-	
-	while(!World::IsStopped() && m_sock != INVALID_SOCKET && m_force_stop == false) {
-		char buffer[10240] = "";
-		int byteRecv = recv(m_sock, buffer, 10240, 0);
-		if(byteRecv != SOCKET_ERROR && byteRecv != 0) {
-			if(strlen(buffer) > 0 ) {
-				// Create packet
-				WorldPacket* packet = new WorldPacket(buffer[0]);
-
-				for(int i=1;i<strlen(buffer);i++)
-					packet->append((uint8)buffer[i]);
-				
-				// Handle Packet
-				if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
-				{
-					IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
-					(this->*IRopHandle.handler)(*packet);
-					
-				}
-				else
-					this->Handle_Unhandled(*packet);
-					
-				// Delete Packet from memory
-				if(packet != NULL)
-					delete packet;
-			}
+		m_sock = socket(AF_INET, SOCK_STREAM, 0);
+		if(m_sock == INVALID_SOCKET)
+		{
+			sLog->outError("Unable to create InterRealm Socket, must stop !!");
+			World::StopNow(10);
+			return;
 		}
-		else
-			m_force_stop = true;
+		
+		m_sin.sin_addr.s_addr = inet_addr("127.0.0.1");
+		m_sin.sin_family = AF_INET;
+		m_sin.sin_port = htons(INTERREALM_PORT);
+		
+		int m_err = connect(m_sock, (SOCKADDR*)&m_sin, sizeof(m_sin));
+		if(m_err == SOCKET_ERROR)
+		{
+			sLog->outError("Unable to connect to InterRealm Server...");
+			return;
+		}
+		
+		WorldPacket* packet = new WorldPacket(IR_CMSG_HELLO);
+		*packet << std::string("HELO");
+		*packet << (uint8)urand(0,255);
+		*packet << (uint8)0;
+		*packet << (uint8)1;
+		*packet << (uint8)0;
+		SendPacket(packet);
+		
+		while(!World::IsStopped() && m_sock != INVALID_SOCKET && m_force_stop == false) {
+			char buffer[10240] = "";
+			int byteRecv = recv(m_sock, buffer, 10240, 0);
+			if(byteRecv != SOCKET_ERROR && byteRecv != 0) {
+				if(strlen(buffer) > 0 ) {
+					// Create packet
+					WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
+
+					for(int i=2;i<byteRecv;i++)
+						*packet << (uint8)buffer[i];
+					
+					// Handle Packet
+					if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
+					{
+						IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
+						(this->*IRopHandle.handler)(*packet);
+					}
+					else
+						this->Handle_Unhandled(*packet);
+						
+					// Delete Packet from memory
+					if(packet != NULL)
+						delete packet;
+				}
+			}
+			else
+				m_force_stop = true;
+		}
+		sLog->outString("Connection Lost with %s:%d (sock %d)",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
+		if(m_sock != INVALID_SOCKET)
+			close(m_sock);
 	}
-	sLog->outString("Connection Lost with %s:%d (sock %d)",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
-	if(m_sock != INVALID_SOCKET)
-		close(m_sock);
+	sLog->outString("Close InterRealm Thread",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
 }
 
 void InterRealmTunnel::SendPacket(WorldPacket const* packet)
@@ -117,13 +124,11 @@ void InterRealmTunnel::SendPacket(WorldPacket const* packet)
 
 void InterRealmTunnel::Handle_Unhandled(WorldPacket& recvPacket)
 {
-	sLog->outError("[WARN] Packet with Invalid IROpcode %u received !",recvPacket.GetOpcode());
+	sLog->outError("[WARN] Unhandled Packet with IROpcode %u received !",recvPacket.GetOpcode());
 }
 
 void InterRealmTunnel::Handle_Null(WorldPacket& recvPacket)
 {
-	sLog->outDetail("Handle_Null");
-	//recvPacket->hexlike();
-	sLog->outString("packet Opcode %u Content %s",recvPacket.GetOpcode(),recvPacket.contents());
+	sLog->outError("[WARN] Packet with Invalid IROpcode %u received !",recvPacket.GetOpcode());
 }
 

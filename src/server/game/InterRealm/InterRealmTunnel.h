@@ -38,6 +38,7 @@ class InterRealmTunnel: public ACE_Based::Runnable
 		 
 		 void Handle_Unhandled(WorldPacket& recvPacket);
 		 void Handle_Null(WorldPacket& recvPacket);
+		 void Handle_ClientSide(WorldPacket& recvPacket) { }
 		 void SendPacket(WorldPacket const* packet);
 	private:
 		
