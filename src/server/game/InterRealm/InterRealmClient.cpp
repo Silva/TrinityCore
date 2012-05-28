@@ -41,7 +41,7 @@ void InterRealmClient::run()
 	while(!World::IsStopped() && csock != INVALID_SOCKET && m_force_close == false) {
 		char buffer[10240] = "";
 		int byteRecv = recv(csock, buffer, 10240, 0);
-		if(byteRecv != SOCKET_ERROR/* && byteRecv != 0*/)
+		if(byteRecv != SOCKET_ERROR)
 			handlePacket(buffer,byteRecv);
 		else
 			m_force_close = true;
@@ -78,11 +78,25 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 	recvPacket >> posZ;
 	recvPacket >> posO;
 	
-	WorldSession* psess = new WorldSession(0,this,SEC_PLAYER,2,0,LocaleConstant(0),0,false);
-    Player* _player = new Player(psess);
+	WorldSession* _sess;
+	Player* _player;
 	
-	((Object*)_player)->_Create(guidlow, 0, HIGHGUID_PLAYER);
-    _player->SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(guidlow, 0, HIGHGUID_PLAYER));
+	IRPlayerSessions::iterator itr = m_sessions.find(guidlow);
+	if(itr == m_sessions.end())
+	{
+		_sess = new WorldSession(0,this,SEC_PLAYER,2,0,LocaleConstant(0),0,false);
+		_player = new Player(_sess);
+		((Object*)_player)->_Create(guidlow, 0, HIGHGUID_PLAYER);
+		_player->SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(guidlow, 0, HIGHGUID_PLAYER));
+		_sess->SetPlayer(_player);
+	}
+	else
+	{
+		_sess = itr->second;
+		_player = _sess->GetPlayer();
+		if(!_sess->GetPlayer());
+			return;
+	}
 	
 	_player->SetUInt64Value(0,guidlow);
 	//_player->Setaccount ??
@@ -109,6 +123,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 
 	recvPacket >> arenaPoints;
 	recvPacket >> HonorPoints;
+	
 	/*recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION));
 	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION));
 	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS));
@@ -224,6 +239,11 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
         recvPacket >> uint32(itr->second->GetDuration());
         recvPacket >> uint8(itr->second->GetCharges());
     }*/
+    if(itr == m_sessions.end())
+    {
+		sWorld->AddSession(_sess);
+		m_sessions[guidlow] = _sess;
+	}
 }
 
 void InterRealmClient::Handle_WhoIam(WorldPacket &packet)
@@ -377,6 +397,9 @@ void InterRealmClient::SendPacket(WorldPacket const* packet)
 
 void InterRealmClient::handlePacket(const char* buffer, int byteRecv)
 {
+	if(byteRecv == 0)
+		return;
+		
 	if(byteRecv > 1) {
 		// Create packet
 		WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);

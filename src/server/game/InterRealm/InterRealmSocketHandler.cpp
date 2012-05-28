@@ -53,8 +53,6 @@ InterRealmSocket::InterRealmSocket()
 
 InterRealmSocket::~InterRealmSocket()
 {
-	if(!m_err)
-		close(ir_sock);
 }
 
 void InterRealmSocket::run()
@@ -72,10 +70,12 @@ void InterRealmSocket::run()
 		SOCKET csock;
 		SOCKADDR_IN csin;
 		socklen_t recsize = sizeof(csin);
-		csock = accept(this->ir_sock, (SOCKADDR*)&csin, &recsize);
+		csock = accept(ir_sock, (SOCKADDR*)&csin, &recsize);
 		sLog->outString("Accepting Client from %s:%d (sock %d)", inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
 		createClient(csock, csin, recsize);
 	}
+	sLog->outString("InterRealm is Shutting down...");
+	close(ir_sock);
 }
 
 void InterRealmSocket::createClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize)
