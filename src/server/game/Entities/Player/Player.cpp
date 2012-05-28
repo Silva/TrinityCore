@@ -74,6 +74,8 @@
 #include "InstanceScript.h"
 #include <cmath>
 #include "AccountMgr.h"
+#include "InterRealmOpcodes.h"
+#include "PlayerDump.h"
 
 #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
 
@@ -18966,6 +18968,181 @@ void Player::SaveToDB(bool create /*=false*/)
         pet->SavePetToDB(PET_SAVE_AS_CURRENT);
 }
 
+/*void Player::SendDatasToInterRealm()
+{
+	std::string dump;
+	PlayerDumpWriter* pdumpWriter = new PlayerDumpWriter();
+	pdumpWriter->GetDump(uint32(GetGUID()),dump);
+	WorldPacket packet(IR_CMSG_REGISTER_PLAYER,dump.size());
+	packet << uint64(GetGUID());
+	packet << std::string(dump);
+	if(sWorld->GetInterRealmTunnel())
+		sWorld->GetInterRealmTunnel()->SendPacket(&packet);
+}*/
+
+void Player::SendDatasToInterRealm()
+{
+	
+	WorldPacket pdump(IR_CMSG_REGISTER_PLAYER,
+	4+4+(strlen(GetName())+1)+1+1+1+1+4+4+4+4+4+2+4+4+4+4+4
+	);
+	pdump << uint32(GetGUIDLow());
+	pdump << uint32(GetSession()->GetAccountId());
+	pdump << GetName();
+	pdump << uint8(getRace());
+	pdump << uint8(getClass());
+	pdump << uint8(getGender());
+	pdump << uint8(getLevel());
+	pdump << uint32(GetUInt32Value(PLAYER_XP));
+	pdump << uint32(GetMoney());
+	pdump << uint32(GetUInt32Value(PLAYER_BYTES));
+	pdump << uint32(GetUInt32Value(PLAYER_BYTES_2));
+	pdump << uint32(GetUInt32Value(PLAYER_FLAGS));
+	pdump << uint16((uint16)GetMapId());
+	pdump << uint32((uint32)GetInstanceId());
+	pdump << float(finiteAlways(GetPositionX()));
+	pdump << float(finiteAlways(GetPositionY()));
+	pdump << float(finiteAlways(GetPositionZ()));
+	pdump << float(finiteAlways(GetOrientation()));
+
+	pdump << uint16((uint16)m_ExtraFlags);
+	pdump << uint8(m_stableSlots);
+	pdump << uint16((uint16)m_atLoginFlags);
+	pdump << uint16(GetZoneId());
+	pdump << uint32(m_deathExpireTime);
+
+	pdump << uint32(GetArenaPoints());
+	pdump << uint32(GetHonorPoints());
+	/*pdump << uint32(GetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION));
+	pdump << uint32(GetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION));
+	pdump << uint32(GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS));
+	pdump << uint16(GetUInt16Value(PLAYER_FIELD_KILLS, 0));
+	pdump << uint16(GetUInt16Value(PLAYER_FIELD_KILLS, 1));
+	pdump << uint32(GetUInt32Value(PLAYER_CHOSEN_TITLE));
+	pdump << uint64(GetUInt64Value(PLAYER_FIELD_KNOWN_CURRENCIES));
+	pdump << uint32(GetUInt32Value(PLAYER_FIELD_WATCHED_FACTION_INDEX));
+	pdump << uint16((uint16)(GetUInt32Value(PLAYER_BYTES_3) & 0xFFFE));
+	pdump << uint32(GetHealth());
+
+	for (uint32 i = 0; i < MAX_POWERS; ++i)
+		pdump << uint32(GetPower(Powers(i)));
+
+	pdump << uint8(m_specsCount);
+	pdump << uint8(m_activeSpec);
+
+	for (uint32 i = 0; i < EQUIPMENT_SLOT_END * 2; ++i)
+		pdump << uint32(PLAYER_VISIBLE_ITEM_1_ENTRYID + i);
+
+	// ...and bags for enum opcode
+	for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+	{
+		if (Item* item = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+			pdump << uint32(item->GetEntry());
+		else
+			pdump << uint32(0);
+	}
+
+	pdump << uint32(GetUInt32Value(PLAYER_AMMO_ID));
+
+	pdump << uint8(GetByteValue(PLAYER_FIELD_BYTES, 2));
+	pdump << uint32(m_grantableLevels);
+
+	// BG Data
+	pdump << uint32(m_bgData.bgInstanceID);
+    pdump << uint16(m_bgData.bgTeam);
+    pdump << float(m_bgData.joinPos.GetPositionX());
+    pdump << float(m_bgData.joinPos.GetPositionY());
+    pdump << float(m_bgData.joinPos.GetPositionZ());
+    pdump << float(m_bgData.joinPos.GetOrientation());
+    pdump << uint16(m_bgData.joinPos.GetMapId());
+    pdump << uint16(m_bgData.taxiPath[0]);
+    pdump << uint16(m_bgData.taxiPath[1]);
+    pdump << uint16(m_bgData.mountSpell);
+
+	// Talents
+    for (uint8 i = 0; i < MAX_TALENT_SPECS; ++i)
+    {
+		pdump << uint32(m_talents[i].size());
+        for (PlayerTalentMap::iterator itr = m_talents[i]->begin(); itr != m_talents[i]->end();)
+        {
+                pdump << uint32(itr->first);
+                pdump << uint8(itr->second->spec);
+        }
+     }
+     
+     pdump << uint32(m_spells.size());
+     for (PlayerSpellMap::iterator itr = m_spells.begin(); itr != m_spells.end();)
+    {
+            pdump << uint32(itr->first);
+            pdump << uint8(itr->second->active); //bool
+            pdump << uint8(itr->second->disabled); //bool
+    }
+    time_t curTime = time(NULL); // ?? where ???
+    time_t infTime = curTime + infinityCooldownDelayCheck;
+
+	pdump << uint32(m_spellCooldowns.size());
+    for (SpellCooldowns::iterator itr = m_spellCooldowns.begin(); itr != m_spellCooldowns.end();)
+    {
+            pdump << itr->first; // ?what
+            pdump << uint32(itr->second.itemid);
+            pdump << uint64(itr->second.end);
+    }
+    
+    pdump << uint32(m_ownedAuras.size());
+    for (AuraMap::const_iterator itr = m_ownedAuras.begin(); itr != m_ownedAuras.end(); ++itr)
+    {
+        Aura* aura = itr->second;
+
+        int32 damage[MAX_SPELL_EFFECTS];
+        int32 baseDamage[MAX_SPELL_EFFECTS];
+        uint8 effMask = 0;
+        uint8 recalculateMask = 0;
+        for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+        {
+            if (AuraEffect const* effect = aura->GetEffect(i))
+            {
+                baseDamage[i] = effect->GetBaseAmount();
+                damage[i] = effect->GetAmount();
+                effMask |= 1 << i;
+                if (effect->CanBeRecalculated())
+                    recalculateMask |= 1 << i;
+            }
+            else
+            {
+                baseDamage[i] = 0;
+                damage[i] = 0;
+            }
+        }
+
+        pdump << uint64(itr->second->GetCasterGUID());
+        pdump << uint64(itr->second->GetCastItemGUID());
+        pdump << uint32(itr->second->GetId());
+        pdump << uint8(effMask);
+        pdump << uint8(recalculateMask);
+        pdump << uint8(itr->second->GetStackAmount());
+        pdump << uint32(damage[0]);
+        pdump << uint32(damage[1]);
+        pdump << uint32(damage[2]);
+        pdump << uint32(baseDamage[0]);
+        pdump << uint32(baseDamage[1]);
+        pdump << uint32(baseDamage[2]);
+        pdump << uint32(itr->second->GetMaxDuration());
+        pdump << uint32(itr->second->GetDuration());
+        pdump << uint8(itr->second->GetCharges());
+ 
+    }
+
+    m_achievementMgr.SaveToDB(trans);
+    m_reputationMgr.SaveToDB(trans);
+    _SaveEquipmentSets(trans);
+    _SaveGlyphs(trans);
+
+    // save pet (hunter pet level and experience and all type pets health/mana).
+    if (Pet* pet = GetPet())
+        pet->SavePetToDB(PET_SAVE_AS_CURRENT);*/
+    if(sWorld->GetInterRealmTunnel())
+		sWorld->GetInterRealmTunnel()->SendPacket(&pdump);
+}
 // fast save function for item/money cheating preventing - save only inventory and money state
 void Player::SaveInventoryAndGoldToDB(SQLTransaction& trans)
 {

@@ -285,7 +285,10 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                         {
                             sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
                             if(opHandle.forwardToIR == PROCESS_ALWAYS_DISTANT)
+                            {
+								_player->SendDatasToInterRealm();
 								sWorld->GetInterRealmTunnel()->SendTunneledPacket(_player->GetGUID(),packet);
+							}
 							else
 								(this->*opHandle.handler)(*packet);
                             if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())

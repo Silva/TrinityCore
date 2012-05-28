@@ -68,7 +68,7 @@ void InterRealmTunnel::run()
 			char buffer[10240];
 			bzero(buffer,10240);
 			int byteRecv = recv(m_sock, buffer, 10240, 0);
-			if(byteRecv != SOCKET_ERROR && byteRecv != 0) {
+			if(byteRecv != SOCKET_ERROR/* && byteRecv != 0*/) {
 				if(byteRecv > 0) {
 					// Create packet
 					WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
@@ -105,9 +105,14 @@ void InterRealmTunnel::run()
 			else
 				m_force_stop = true;
 		}
-		sLog->outString("Connection Lost with %s:%d (sock %d)",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
+		
 		if(m_sock != INVALID_SOCKET)
+		{
+			sLog->outString("Close Connection with %s:%d (sock %d)",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
 			close(m_sock);
+		}
+		else
+			sLog->outError("Connection Lost with %s:%d (sock %d)",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
 	}
 	sLog->outString("Close InterRealm Thread",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
 }
@@ -207,4 +212,3 @@ void InterRealmTunnel::SendPacket(WorldPacket const* packet)
 	send(m_sock,buffer,packet->size()+2,0);
 	free(buffer);
 }
-
