@@ -43,10 +43,15 @@ class InterRealmClient: public ACE_Based::Runnable
 		/*
 		 *  Handlers
 		 */
+		 // IR Player handling
+		 void Handle_RegisterPlayer(WorldPacket& recvPacket);
+		 
+		 // IR Negociation
 		 void Handle_Hello(WorldPacket& recvPacket);
 		 void Handle_WhoIam(WorldPacket &packet);
-		 
-		 //
+		 // IR Tunnel
+		 void Handle_TunneledPacket(WorldPacket& recvPacket);
+		 // Useless
 		 void Handle_Unhandled(WorldPacket& recvPacket);
 		 void Handle_Null(WorldPacket& recvPacket);
 		 void Handle_ServerSide(WorldPacket& recvPacket) { }
@@ -54,7 +59,7 @@ class InterRealmClient: public ACE_Based::Runnable
 		 // Packet
 		 void SendPacket(WorldPacket const* packet);
 	private:
-	
+		void handlePacket(const char* buffer, int byteRecv);
 		// Realmlist
 		int m_realRealmId;
 		int m_realmId;

@@ -23,7 +23,7 @@
 #include "Common.h"
 #include "ObjectAccessor.h"
 #include "World.h"
-#include "WorldSocketMgr.h"
+//#include "WorldSocketMgr.h"
 #include "Database/DatabaseEnv.h"
 #include "ScriptMgr.h"
 #include "BattlegroundMgr.h"
@@ -89,7 +89,7 @@ void WorldRunnable::run()
     // unload battleground templates before different singletons destroyed
     sBattlegroundMgr->DeleteAllBattlegrounds();
 
-    sWorldSocketMgr->StopNetwork();
+    //sWorldSocketMgr->StopNetwork();
 
     sMapMgr->UnloadAll();                     // unload all grids (including locked in memory)
     sObjectAccessor->UnloadAll();             // unload 'i_player2corpse' storage and remove from world

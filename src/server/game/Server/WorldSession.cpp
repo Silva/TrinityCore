@@ -20,7 +20,7 @@
     \ingroup u2w
 */
 
-#include "WorldSocket.h"                                    // must be first to make ACE happy with ACE includes in it
+//#include "WorldSocket.h"                                    // must be first to make ACE happy with ACE includes in it
 #include "Common.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
@@ -88,8 +88,8 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 }
 
 /// WorldSession constructor
-WorldSession::WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter):
-m_muteTime(mute_time), m_timeOutTime(0), _player(NULL), m_Socket(sock),
+WorldSession::WorldSession(uint32 id, /*WorldSocket* sock, */AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter):
+m_muteTime(mute_time), m_timeOutTime(0), _player(NULL), /*m_Socket(sock),*/
 _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
 m_inQueue(false), m_playerLoading(false), m_playerLogout(false),
 m_playerRecentlyLogout(false), m_playerSave(false),
@@ -100,13 +100,13 @@ isRecruiter(isARecruiter), timeLastWhoCommand(0)
 {
     _warden = NULL;
 
-    if (sock)
+    /*if (sock)
     {
         m_Address = sock->GetRemoteAddress();
         sock->AddReference();
-        ResetTimeOutTime();
+        ResetTimeOutTime();*/
         LoginDatabase.PExecute("UPDATE account SET online = 1 WHERE id = %u;", GetAccountId());     // One-time query
-    }
+    //}
 
     InitializeQueryCallbackParameters();
 }
@@ -119,12 +119,12 @@ WorldSession::~WorldSession()
         LogoutPlayer (true);
 
     /// - If have unclosed socket, close it
-    if (m_Socket)
+    /*if (m_Socket)
     {
         m_Socket->CloseSocket();
         m_Socket->RemoveReference();
         m_Socket = NULL;
-    }
+    }*/
 
     if (_warden)
         delete _warden;
@@ -158,7 +158,8 @@ uint32 WorldSession::GetGuidLow() const
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet)
 {
-    if (!m_Socket)
+	// @ TODO rewrite for tunnel
+    //if (!m_Socket)
         return;
 
 #ifdef TRINITY_DEBUG
@@ -195,8 +196,8 @@ void WorldSession::SendPacket(WorldPacket const* packet)
     }
 #endif                                                      // !TRINITY_DEBUG
 
-    if (m_Socket->SendPacket(*packet) == -1)
-        m_Socket->CloseSocket();
+   /* if (m_Socket->SendPacket(*packet) == -1)
+        m_Socket->CloseSocket();*/
 }
 
 /// Add an incoming packet to the queue
@@ -229,8 +230,8 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
 
     ///- Before we process anything:
     /// If necessary, kick the player from the character select screen
-    if (IsConnectionIdle())
-        m_Socket->CloseSocket();
+    /*if (IsConnectionIdle())
+        m_Socket->CloseSocket();*/
 
     ///- Retrieve packets from the receive queue and call the appropriate handlers
     /// not process packets if socket already closed
@@ -244,14 +245,14 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
     //! delayed packets that were re-enqueued due to improper timing. To prevent an infinite
     //! loop caused by re-enqueueing the same packets over and over again, we stop updating this session
     //! and continue updating others. The re-enqueued packets will be handled in the next Update call for this session.
-    while (m_Socket && !m_Socket->IsClosed() &&
+    while (/*m_Socket && !m_Socket->IsClosed() &&*/
             !_recvQueue.empty() && _recvQueue.peek(true) != firstDelayedPacket &&
             _recvQueue.next(packet, updater))
     {
         if (packet->GetOpcode() >= NUM_MSG_TYPES)
         {
             sLog->outError("SESSION: received non-existed opcode %s (0x%.4X)", LookupOpcodeName(packet->GetOpcode()), packet->GetOpcode());
-            sScriptMgr->OnUnknownPacketReceive(m_Socket, WorldPacket(*packet));
+            //sScriptMgr->OnUnknownPacketReceive(m_Socket, WorldPacket(*packet));
         }
         else
         {
@@ -282,7 +283,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                         }
                         else if (_player->IsInWorld())
                         {
-                            sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+                            //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
                             (this->*opHandle.handler)(*packet);
                             if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
                                 LogUnprocessedTail(packet);
@@ -296,7 +297,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                         else
                         {
                             // not expected _player or must checked in packet handler
-                            sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+                            //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
                             (this->*opHandle.handler)(*packet);
                             if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
                                 LogUnprocessedTail(packet);
@@ -309,7 +310,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                             LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player is still in world");
                         else
                         {
-                            sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+                            //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
                             (this->*opHandle.handler)(*packet);
                             if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
                                 LogUnprocessedTail(packet);
@@ -328,7 +329,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                         if (packet->GetOpcode() != CMSG_SET_ACTIVE_VOICE_CHANNEL)
                             m_playerRecentlyLogout = false;
 
-                        sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+                        //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
                         (this->*opHandle.handler)(*packet);
                         if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
                             LogUnprocessedTail(packet);
@@ -361,7 +362,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
             delete packet;
     }
 
-    if (m_Socket && !m_Socket->IsClosed() && _warden)
+    if (/*m_Socket && !m_Socket->IsClosed() && */_warden)
         _warden->Update();
 
     ProcessQueryCallbacks();
@@ -375,18 +376,18 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
         if (ShouldLogOut(currTime) && !m_playerLoading)
             LogoutPlayer(true);
 
-        if (m_Socket && GetPlayer() && _warden)
+        if (/*m_Socket && */GetPlayer() && _warden)
             _warden->Update();
 
         ///- Cleanup socket pointer if need
-        if (m_Socket && m_Socket->IsClosed())
+        /*if (m_Socket && m_Socket->IsClosed())
         {
             m_Socket->RemoveReference();
             m_Socket = NULL;
         }
 
         if (!m_Socket)
-            return false;                                       //Will remove this session from the world session map
+            return false;     */                                  //Will remove this session from the world session map
     }
 
     return true;
@@ -515,7 +516,7 @@ void WorldSession::LogoutPlayer(bool Save)
 
         // remove player from the group if he is:
         // a) in group; b) not in raid group; c) logging out normally (not being kicked or disconnected)
-        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && m_Socket)
+        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup()/* && m_Socket*/)
             _player->RemoveFromGroup();
 
         ///- Send update to group and reset stored max enchanting level
@@ -567,8 +568,8 @@ void WorldSession::LogoutPlayer(bool Save)
 /// Kick a player out of the World
 void WorldSession::KickPlayer()
 {
-    if (m_Socket)
-        m_Socket->CloseSocket();
+    /*if (m_Socket)
+        m_Socket->CloseSocket();*/
 }
 
 void WorldSession::SendNotification(const char *format, ...)
@@ -618,7 +619,7 @@ void WorldSession::Handle_NULL(WorldPacket& recvPacket)
 
 void WorldSession::Handle_EarlyProccess(WorldPacket& recvPacket)
 {
-    sLog->outError("SESSION: received opcode %s (0x%.4X) that must be processed in WorldSocket::OnRead", LookupOpcodeName(recvPacket.GetOpcode()), recvPacket.GetOpcode());
+    //sLog->outError("SESSION: received opcode %s (0x%.4X) that must be processed in WorldSocket::OnRead", LookupOpcodeName(recvPacket.GetOpcode()), recvPacket.GetOpcode());
 }
 
 void WorldSession::Handle_ServerSide(WorldPacket& recvPacket)

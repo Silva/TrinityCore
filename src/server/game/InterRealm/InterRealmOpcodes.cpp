@@ -19,12 +19,12 @@
 #include "InterRealmOpcodes.h"
 
 IROpcodeHandler IRopcodeTable[IR_NUM_MSG_TYPES] = {
-	{"IR_CMSG_HELLO",					&InterRealmClient::Handle_Hello			},
-	{"IR_SMSG_HELLO",					&InterRealmClient::Handle_ServerSide	},
-	{"IR_CMSG_TUNNEL_PACKET",			&InterRealmClient::Handle_Null			},
-	{"IR_SMSG_TUNNEL_PACKET",			&InterRealmClient::Handle_ServerSide	},
-	{"IR_CMSG_WHOIAM",					&InterRealmClient::Handle_WhoIam		},
-	{"IR_SMSG_WHOIAM_ACK",				&InterRealmClient::Handle_ServerSide	},
-	{"IR_CMSG_REGISTER_PLAYER",			&InterRealmClient::Handle_Null			},
-	{"IR_SMSG_REGISTER_PLAYER_RESP",	&InterRealmClient::Handle_ServerSide	},
+	{"IR_CMSG_HELLO",					&InterRealmClient::Handle_Hello				},
+	{"IR_SMSG_HELLO",					&InterRealmClient::Handle_ServerSide		},
+	{"IR_CMSG_TUNNEL_PACKET",			&InterRealmClient::Handle_TunneledPacket	},
+	{"IR_SMSG_TUNNEL_PACKET",			&InterRealmClient::Handle_ServerSide		},
+	{"IR_CMSG_WHOIAM",					&InterRealmClient::Handle_WhoIam			},
+	{"IR_SMSG_WHOIAM_ACK",				&InterRealmClient::Handle_ServerSide		},
+	{"IR_CMSG_REGISTER_PLAYER",			&InterRealmClient::Handle_RegisterPlayer	},
+	{"IR_SMSG_REGISTER_PLAYER_RESP",	&InterRealmClient::Handle_ServerSide		},
 };

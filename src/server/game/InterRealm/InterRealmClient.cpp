@@ -36,46 +36,11 @@ InterRealmClient::~InterRealmClient()
 
 void InterRealmClient::run()
 {
-	while(!World::IsStopped() && m_force_close == false) {
+	while(!World::IsStopped() && csock != INVALID_SOCKET && m_force_close == false) {
 		char buffer[10240] = "";
 		int byteRecv = recv(csock, buffer, 10240, 0);
-		if(byteRecv != SOCKET_ERROR && byteRecv != 0) {
-			if(byteRecv > 1) {
-				// Create packet
-				WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
-
-				for(int i=2;i<byteRecv;i++)
-					*packet << (uint8)buffer[i];
-				sLog->outDetail("Packet recv with opcode %u",packet->GetOpcode());
-				// Handle Packet
-				if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
-				{
-					try
-					{
-						IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
-						(this->*IRopHandle.handler)(*packet);
-					}
-					catch(ByteBufferException &)
-					{
-						sLog->outError("[FATAL] InterRealmClient ByteBufferException occured while parsing a packet (opcode: %u) from InterRealm Server. Skipped packet.",
-								packet->GetOpcode());
-						if (sLog->IsOutDebug())
-						{
-							sLog->outDebug(LOG_FILTER_NETWORKIO, "Dumping error causing packet:");
-							packet->hexlike();
-						}
-					}				
-				}
-				else
-					this->Handle_Unhandled(*packet);
-					
-				// Delete Packet from memory
-				if(packet != NULL)
-					delete packet;
-			}
-			else
-				sLog->outError("Invalid Packet with too short size recv from %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
-		}
+		if(byteRecv != SOCKET_ERROR && byteRecv != 0)
+			handlePacket(buffer,byteRecv);
 		else
 			m_force_close = true;
 	}
@@ -83,6 +48,11 @@ void InterRealmClient::run()
 	if(csock != INVALID_SOCKET)
 		close(csock);
 	ssock->deleteClient(this);
+}
+
+void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
+{
+	
 }
 
 void InterRealmClient::Handle_WhoIam(WorldPacket &packet)
@@ -132,13 +102,6 @@ void InterRealmClient::Handle_Hello(WorldPacket& packet)
 	_compress > IR_PROTOCOL_COMPRESS || _encrypt > IR_PROTOCOL_ENCRYPT)
 		protocol_mismatch = true;
 	
-	WorldPacket pck(IR_SMSG_HELLO,10+1+1);
-	pck << std::string("HELO"); // Polite
-	pck << _rand; // Return same random number
-	pck << (non_polite ? IR_HELO_RESP_POLITE : (protocol_mismatch ? IR_HELO_RESP_PROTOCOL_MISMATCH : IR_HELO_RESP_OK));
-	
-	SendPacket(&pck);
-	
 	if(non_polite || protocol_mismatch)
 	{
 		m_force_close = true;
@@ -148,8 +111,34 @@ void InterRealmClient::Handle_Hello(WorldPacket& packet)
 			sLog->outError("Protocol mismatch on %s:%d, rejecting",inet_ntoa(csin.sin_addr), htons(csin.sin_port));
 	}
 	else
-		sLog->outString("Hello received from %s:%d (compress %u) Protocol version %u.%u",inet_ntoa(csin.sin_addr), htons(csin.sin_port),
+		sLog->outDetail("Hello received from %s:%d (compress %u) Protocol version %u.%u",inet_ntoa(csin.sin_addr), htons(csin.sin_port),
 		_compress,protocolVer,protocolSubVer);
+	
+	WorldPacket pck(IR_SMSG_HELLO,10+1+1);
+	pck << std::string("HELO"); // Polite
+	pck << uint8(_rand); // Return same random number
+	pck << uint8((non_polite ? IR_HELO_RESP_POLITE : (protocol_mismatch ? IR_HELO_RESP_PROTOCOL_MISMATCH : IR_HELO_RESP_OK)));
+	
+	SendPacket(&pck);
+}
+
+void InterRealmClient::Handle_TunneledPacket(WorldPacket& recvPacket)
+{
+	uint64 playerGuid;
+	uint16 opcodeId;
+	recvPacket >> playerGuid;
+	recvPacket >> opcodeId;
+
+	WorldPacket tunPacket(opcodeId,recvPacket.size()-(8+2));
+	
+	for(int i=10;i<recvPacket.size();i++)
+	{
+		uint8 rawData;
+		recvPacket >> rawData;
+		tunPacket << rawData;
+	}
+	
+	sLog->outDetail("Tunneled Packet received (opcode %x)",opcodeId);
 }
 
 void InterRealmClient::printInfos()
@@ -188,4 +177,42 @@ void InterRealmClient::SendPacket(WorldPacket const* packet)
 	
 	send(csock,buffer,packet->size()+2,0);
 	free(buffer);
+}
+
+void InterRealmClient::handlePacket(const char* buffer, int byteRecv)
+{
+	if(byteRecv > 1) {
+		// Create packet
+		WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
+
+		for(int i=2;i<byteRecv;i++)
+			*packet << (uint8)buffer[i];
+		// Handle Packet
+		if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
+		{
+			try
+			{
+				IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
+				(this->*IRopHandle.handler)(*packet);
+			}
+			catch(ByteBufferException &)
+			{
+				sLog->outError("[FATAL] InterRealmClient ByteBufferException occured while parsing a packet (opcode: %u) from InterRealm Server. Skipped packet.",
+						packet->GetOpcode());
+				if (sLog->IsOutDebug())
+				{
+					sLog->outDebug(LOG_FILTER_NETWORKIO, "Dumping error causing packet:");
+					packet->hexlike();
+				}
+			}				
+		}
+		else
+			this->Handle_Unhandled(*packet);
+			
+		// Delete Packet from memory
+		if(packet != NULL)
+			delete packet;
+	}
+	else
+		sLog->outError("Invalid Packet with too short size recv from %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
 }

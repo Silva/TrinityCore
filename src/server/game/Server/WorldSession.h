@@ -45,7 +45,7 @@ class SpellCastTargets;
 class Unit;
 class Warden;
 class WorldPacket;
-class WorldSocket;
+//class WorldSocket;
 struct AreaTableEntry;
 struct AuctionEntry;
 struct DeclinedName;
@@ -215,7 +215,7 @@ class CharacterCreateInfo
 class WorldSession
 {
     public:
-        WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter);
+        WorldSession(uint32 id, /*WorldSocket* sock, */AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter);
         ~WorldSession();
 
         bool PlayerLoading() const { return m_playerLoading; }
@@ -948,7 +948,7 @@ class WorldSession
 
         uint32 m_GUIDLow;                                   // set loggined or recently logout player (while m_playerRecentlyLogout set)
         Player* _player;
-        WorldSocket* m_Socket;
+        //WorldSocket* m_Socket;
         std::string m_Address;
 
         AccountTypes _security;

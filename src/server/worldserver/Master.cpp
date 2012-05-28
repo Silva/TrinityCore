@@ -28,8 +28,8 @@
 #include "SignalHandler.h"
 #include "World.h"
 #include "WorldRunnable.h"
-#include "WorldSocket.h"
-#include "WorldSocketMgr.h"
+//#include "WorldSocket.h"
+//#include "WorldSocketMgr.h"
 #include "Configuration/Config.h"
 #include "Database/DatabaseEnv.h"
 #include "Database/DatabaseWorkerPool.h"
@@ -257,7 +257,7 @@ int Master::Run()
     }
 
     ///- Launch the world listener socket
-    uint16 wsport = sWorld->getIntConfig(CONFIG_PORT_WORLD);
+    /*uint16 wsport = sWorld->getIntConfig(CONFIG_PORT_WORLD);
     std::string bind_ip = ConfigMgr::GetStringDefault("BindIP", "0.0.0.0");
 
     if (sWorldSocketMgr->StartNetwork(wsport, bind_ip.c_str ()) == -1)
@@ -265,7 +265,7 @@ int Master::Run()
         sLog->outError("Failed to start network");
         World::StopNow(ERROR_EXIT_CODE);
         // go down and shutdown the server
-    }
+    }*/
 
     // set server online (allow connecting now)
     LoginDatabase.DirectPExecute("UPDATE realmlist SET flag = flag & ~%u, population = 0 WHERE id = '%u'", REALM_FLAG_INVALID, realmID);
@@ -275,7 +275,6 @@ int Master::Run()
     
     sLog->outString("%s (worldserver-daemon) ready...", _FULLVERSION);
 
-	
     // when the main thread closes the singletons get unloaded
     // since worldrunnable uses them, it will crash if unloaded after master
     world_thread.wait();
