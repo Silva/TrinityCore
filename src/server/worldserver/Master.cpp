@@ -270,9 +270,11 @@ int Master::Run()
     // set server online (allow connecting now)
     LoginDatabase.DirectPExecute("UPDATE realmlist SET flag = flag & ~%u, population = 0 WHERE id = '%u'", REALM_FLAG_INVALID, realmID);
 
-	ACE_Based::Thread interrealm_thread(new InterRealmTunnel);
+	InterRealmTunnel* irt = new InterRealmTunnel();
+	ACE_Based::Thread interrealm_thread(irt);
     interrealm_thread.setPriority(ACE_Based::Highest);
     
+    sWorld->SetInterRealmTunnel(irt);
     sLog->outString("%s (worldserver-daemon) ready...", _FULLVERSION);
 
     // when the main thread closes the singletons get unloaded

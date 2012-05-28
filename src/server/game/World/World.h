@@ -30,6 +30,7 @@
 #include "SharedDefines.h"
 #include "QueryResult.h"
 #include "Callback.h"
+#include "../InterRealm/InterRealmTunnel.h"
 
 #include <map>
 #include <set>
@@ -757,6 +758,8 @@ class World
         uint32 GetCleaningFlags() const { return m_CleaningFlags; }
         void   SetCleaningFlags(uint32 flags) { m_CleaningFlags = flags; }
         void   ResetEventSeasonalQuests(uint16 event_id);
+        void SetInterRealmTunnel(InterRealmTunnel* irt) { m_ir_tunnel = irt; }
+        InterRealmTunnel* GetInterRealmTunnel() { return m_ir_tunnel; }
     protected:
         void _UpdateGameTime();
         // callback for UpdateRealmCharacters
@@ -769,6 +772,7 @@ class World
         void ResetWeeklyQuests();
         void ResetRandomBG();
     private:
+		InterRealmTunnel* m_ir_tunnel;
         static ACE_Atomic_Op<ACE_Thread_Mutex, bool> m_stopEvent;
         static uint8 m_ExitCode;
         uint32 m_ShutdownTimer;

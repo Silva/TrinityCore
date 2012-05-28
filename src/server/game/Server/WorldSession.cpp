@@ -273,7 +273,8 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                                     firstDelayedPacket = packet;
                                 //! Because checking a bool is faster than reallocating memory
                                 deletePacket = false;
-                                QueuePacket(packet);
+                                
+								QueuePacket(packet);
                                 //! Log
                                 sLog->outDebug(LOG_FILTER_NETWORKIO, "Re-enqueueing packet with opcode %s (0x%.4X) with with status STATUS_LOGGEDIN. "
                                     "Player is currently not in world yet.", opHandle.name, packet->GetOpcode());
@@ -283,7 +284,10 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                         else if (_player->IsInWorld())
                         {
                             sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
-                            (this->*opHandle.handler)(*packet);
+                            if(opHandle.forwardToIR == PROCESS_ALWAYS_DISTANT)
+								sWorld->GetInterRealmTunnel()->SendTunneledPacket(_player->GetGUID(),packet);
+							else
+								(this->*opHandle.handler)(*packet);
                             if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
                                 LogUnprocessedTail(packet);
                         }

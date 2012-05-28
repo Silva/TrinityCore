@@ -50,32 +50,30 @@ void InterRealmTunnel::run()
 		if(m_err == SOCKET_ERROR)
 		{
 			sLog->outError("Unable to connect to InterRealm Server...");
-			sleep(1);
+			sleep(5);
 			continue;
 		}
 		
 		m_rand = urand(0,255);
-		WorldPacket* packet = new WorldPacket(IR_CMSG_HELLO,10+1+1+1+1+1);
-		*packet << std::string("HELO");
-		*packet << (uint8)m_rand;
-		*packet << (uint8)0;
-		*packet << (uint8)0;
-		*packet << (uint8)1;
-		*packet << (uint8)0;
-		SendPacket(packet);
+		WorldPacket hello_packet(IR_CMSG_HELLO,10+1+1+1+1+1);
+		hello_packet << std::string("HELO");
+		hello_packet << (uint8)m_rand;
+		hello_packet << (uint8)0;
+		hello_packet << (uint8)0;
+		hello_packet << (uint8)1;
+		hello_packet << (uint8)0;
+		SendPacket(&hello_packet);
 		
 		while(!World::IsStopped() && m_sock != INVALID_SOCKET && m_force_stop == false) {
-			char buffer[10240] = "";
+			char buffer[10240];
+			bzero(buffer,10240);
 			int byteRecv = recv(m_sock, buffer, 10240, 0);
 			if(byteRecv != SOCKET_ERROR && byteRecv != 0) {
 				if(byteRecv > 0) {
 					// Create packet
 					WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
-
 					for(int i=2;i<byteRecv;i++)
 						*packet << (uint8)buffer[i];
-					
-					sLog->outDetail("Packet recv with opcode %u",packet->GetOpcode());
 					
 					// Handle Packet
 					if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
@@ -155,7 +153,7 @@ void InterRealmTunnel::Handle_Hello(WorldPacket& packet)
 	if(!m_force_stop && _resp == IR_HELO_RESP_OK)
 	{
 		WorldPacket pck(IR_CMSG_WHOIAM,1+10+10);
-		pck << (int)realmID;
+		pck << realmID;
 		pck << "testuser";
 		pck << "testpwd";
 		SendPacket(&pck);
@@ -170,6 +168,21 @@ void InterRealmTunnel::Handle_Unhandled(WorldPacket& recvPacket)
 void InterRealmTunnel::Handle_Null(WorldPacket& recvPacket)
 {
 	sLog->outError("[WARN] Packet with Invalid IROpcode %u received !",recvPacket.GetOpcode());
+}
+
+void InterRealmTunnel::SendTunneledPacket(uint64 playerGuid, WorldPacket const* packet)
+{
+	if(playerGuid == 0)
+		return;
+	
+	WorldPacket tmpPacket(IR_CMSG_TUNNEL_PACKET,8+2+packet->size());
+	tmpPacket << (uint64)playerGuid;
+	tmpPacket << (uint16)packet->GetOpcode();
+
+	for(int i=0;i<packet->size();i++)
+		tmpPacket << (uint8)packet->contents()[i];
+	
+	SendPacket(&tmpPacket);
 }
 
 void InterRealmTunnel::SendPacket(WorldPacket const* packet)
