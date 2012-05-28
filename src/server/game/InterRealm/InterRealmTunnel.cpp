@@ -54,6 +54,9 @@ void InterRealmTunnel::run()
 			continue;
 		}
 		
+		// reinit if isn't client chainkill it's socket
+		m_force_stop = false;
+		
 		m_rand = urand(0,255);
 		WorldPacket hello_packet(IR_CMSG_HELLO,10+1+1+1+1+1);
 		hello_packet << std::string("HELO");
