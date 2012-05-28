@@ -74,6 +74,7 @@
 #include "InstanceScript.h"
 #include <cmath>
 #include "AccountMgr.h"
+#include "InterRealmOpcodes.h"
 
 #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
 
@@ -637,7 +638,7 @@ UpdateMask Player::updateVisualBits;
 #ifdef _MSC_VER
 #pragma warning(disable:4355)
 #endif
-Player::Player(WorldSession* session): Unit(true), m_achievementMgr(this), m_reputationMgr(this)
+Player::Player(WorldSession* session): Unit(true), m_achievementMgr(this), m_reputationMgr(this), m_realGUID(0)
 {
 #ifdef _MSC_VER
 #pragma warning(default:4355)

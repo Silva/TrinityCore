@@ -16,31 +16,28 @@
 	* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
-#ifndef __INTERREALM_OPCODES_H__
-#define __INTERREALM_OPCODES_H__
+#ifndef __INTERREALM_MGR_H__
+#define __INTERREALM_MGR_H__
 
-#include "WorldPacket.h"
+#include <ace/Singleton.h>
 #include "InterRealmClient.h"
 
-enum IROpcodes {
-	IR_CMSG_HELLO						= 0x00,
-	IR_SMSG_HELLO						= 0x01,
-	IR_CMSG_TUNNEL_PACKET				= 0x02,
-	IR_SMSG_TUNNEL_PACKET				= 0x03,
-	IR_CMSG_WHOIAM						= 0x04,
-	IR_SMSG_WHOIAM_ACK					= 0x05,
-	IR_CMSG_REGISTER_PLAYER 			= 0x06,
-	IR_SMSG_REGISTER_PLAYER_RESP 		= 0x07,
-	
-	IR_NUM_MSG_TYPES					= 0x08,
-};
+typedef std::map<uint16,InterRealmClient*> IRClientMap;
 
-struct IROpcodeHandler
+class InterRealmMgr
 {
-    char const* name;
-    void (InterRealmClient::*handler)(WorldPacket& recvPacket);
+	public:
+		InterRealmMgr();
+		~InterRealmMgr();
+		
+		uint16 RegisterClient(InterRealmClient* irc);
+		void RemoveClient(uint16 realmid);
+		//void GetRealmId(InterRealmClient* irc);
+	private:
+		uint16 m_realmid_offset;
+		IRClientMap m_clients;
 };
 
-extern IROpcodeHandler IRopcodeTable[IR_NUM_MSG_TYPES];
+#define sIRMgr ACE_Singleton<InterRealmMgr, ACE_Null_Mutex>::instance()
 
 #endif

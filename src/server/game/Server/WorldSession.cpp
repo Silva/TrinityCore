@@ -20,7 +20,6 @@
     \ingroup u2w
 */
 
-//#include "WorldSocket.h"                                    // must be first to make ACE happy with ACE includes in it
 #include "Common.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
@@ -88,8 +87,8 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 }
 
 /// WorldSession constructor
-WorldSession::WorldSession(uint32 id, /*WorldSocket* sock, */AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter):
-m_muteTime(mute_time), m_timeOutTime(0), _player(NULL), /*m_Socket(sock),*/
+WorldSession::WorldSession(uint32 id, InterRealmClient* ir_socket, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter):
+m_muteTime(mute_time), m_timeOutTime(0), _player(NULL), m_ir_socket(ir_socket),
 _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
 m_inQueue(false), m_playerLoading(false), m_playerLogout(false),
 m_playerRecentlyLogout(false), m_playerSave(false),
@@ -99,15 +98,6 @@ m_latency(0), m_TutorialsChanged(false), recruiterId(recruiter),
 isRecruiter(isARecruiter), timeLastWhoCommand(0)
 {
     _warden = NULL;
-
-    /*if (sock)
-    {
-        m_Address = sock->GetRemoteAddress();
-        sock->AddReference();
-        ResetTimeOutTime();*/
-        LoginDatabase.PExecute("UPDATE account SET online = 1 WHERE id = %u;", GetAccountId());     // One-time query
-    //}
-
     InitializeQueryCallbackParameters();
 }
 
@@ -119,12 +109,8 @@ WorldSession::~WorldSession()
         LogoutPlayer (true);
 
     /// - If have unclosed socket, close it
-    /*if (m_Socket)
-    {
-        m_Socket->CloseSocket();
-        m_Socket->RemoveReference();
-        m_Socket = NULL;
-    }*/
+    if (m_ir_socket && _player)
+        m_ir_socket->RemovePlayerSession(_player->GetRealGUID());
 
     if (_warden)
         delete _warden;
@@ -158,46 +144,10 @@ uint32 WorldSession::GetGuidLow() const
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet)
 {
-	// @ TODO rewrite for tunnel
-    //if (!m_Socket)
-        return;
-
-#ifdef TRINITY_DEBUG
-    // Code for network use statistic
-    static uint64 sendPacketCount = 0;
-    static uint64 sendPacketBytes = 0;
-
-    static time_t firstTime = time(NULL);
-    static time_t lastTime = firstTime;                     // next 60 secs start time
-
-    static uint64 sendLastPacketCount = 0;
-    static uint64 sendLastPacketBytes = 0;
-
-    time_t cur_time = time(NULL);
-
-    if ((cur_time - lastTime) < 60)
-    {
-        sendPacketCount+=1;
-        sendPacketBytes+=packet->size();
-
-        sendLastPacketCount+=1;
-        sendLastPacketBytes+=packet->size();
-    }
-    else
-    {
-        uint64 minTime = uint64(cur_time - lastTime);
-        uint64 fullTime = uint64(lastTime - firstTime);
-        sLog->outDetail("Send all time packets count: " UI64FMTD " bytes: " UI64FMTD " avr.count/sec: %f avr.bytes/sec: %f time: %u", sendPacketCount, sendPacketBytes, float(sendPacketCount)/fullTime, float(sendPacketBytes)/fullTime, uint32(fullTime));
-        sLog->outDetail("Send last min packets count: " UI64FMTD " bytes: " UI64FMTD " avr.count/sec: %f avr.bytes/sec: %f", sendLastPacketCount, sendLastPacketBytes, float(sendLastPacketCount)/minTime, float(sendLastPacketBytes)/minTime);
-
-        lastTime = cur_time;
-        sendLastPacketCount = 1;
-        sendLastPacketBytes = packet->wpos();               // wpos is real written size
-    }
-#endif                                                      // !TRINITY_DEBUG
-
-   /* if (m_Socket->SendPacket(*packet) == -1)
-        m_Socket->CloseSocket();*/
+    if(!m_ir_socket || !_player)
+		return;
+		
+	m_ir_socket->SendTunneledPacket(_player->GetRealGUID(),packet);
 }
 
 /// Add an incoming packet to the queue

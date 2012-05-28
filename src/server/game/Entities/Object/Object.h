@@ -313,12 +313,13 @@ class Object
 
         Corpse* ToCorpse() { if (GetTypeId() == TYPEID_CORPSE) return reinterpret_cast<Corpse*>(this); else return NULL; }
         Corpse const* ToCorpse() const { if (GetTypeId() == TYPEID_CORPSE) return (const Corpse*)((Corpse*)this); else return NULL; }
+        void _Create (uint32 guidlow, uint32 entry, HighGuid guidhigh);
     protected:
 
         Object();
 
         void _InitValues();
-        void _Create (uint32 guidlow, uint32 entry, HighGuid guidhigh);
+        
         std::string _ConcatFields(uint16 startIndex, uint16 size) const;
         void _LoadIntoDataField(const char* data, uint32 startOffset, uint32 count);
 

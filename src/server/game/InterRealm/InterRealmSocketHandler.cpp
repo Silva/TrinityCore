@@ -1,4 +1,23 @@
+/*
+	* Copyright (C) 2007-2012 Frost Sapphire Studios <http://www.frostsapphirestudios.com/>
+	*
+	* This program is free software; you can redistribute it and/or modify
+	* it under the terms of the GNU General Public License as published by
+	* the Free Software Foundation; either version 2 of the License, or
+	* (at your option) any later version.
+	*
+	* This program is distributed in the hope that it will be useful,
+	* but WITHOUT ANY WARRANTY; without even the implied warranty of
+	* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	* GNU General Public License for more details.
+	*
+	* You should have received a copy of the GNU General Public License
+	* along with this program; if not, write to the Free Software
+	* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+*/
+
 #include "InterRealmSocketHandler.h"
+#include "InterRealmMgr.h"
 #include "World.h"
 
 InterRealmSocket::InterRealmSocket()
@@ -55,30 +74,12 @@ void InterRealmSocket::run()
 		socklen_t recsize = sizeof(csin);
 		csock = accept(this->ir_sock, (SOCKADDR*)&csin, &recsize);
 		sLog->outString("Accepting Client from %s:%d (sock %d)", inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
-		this->createClient(csock, csin, recsize);
+		createClient(csock, csin, recsize);
 	}
-}
-
-void InterRealmSocket::printClientList()
-{
-	mIRClients::iterator itclient;
-	sLog->outString("#---Address---|---Port---|---SocketId---#");
-	for(itclient = m_clients.begin(); itclient < m_clients.end(); ++itclient)
-		(*itclient)->printInfos();
-	sLog->outString("#---------------------------------------#");
 }
 
 void InterRealmSocket::createClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize)
 {
-	InterRealmClient* client = new InterRealmClient(sock, sin, rsize, this);
+	InterRealmClient* client = new InterRealmClient(sock, sin, rsize);
 	ACE_Based::Thread client_thread(client);
-	m_clients.push_back(client);
-}
-
-void InterRealmSocket::deleteClient(InterRealmClient* client)
-{
-	mIRClients::iterator itclient = m_clients.begin();
-	/*for(; itclient != m_clients.end() && (*itclient) != client; ++itclient);
-	if(itclient != m_clients.end())
-		m_clients.erase(itclient);*/
 }

@@ -2525,7 +2525,11 @@ class Player : public Unit, public GridObject<Player>
                 return modelData->CollisionHeight;
             }
         }
-
+		void SetRealGUID(uint64 guid) { m_realGUID = guid; }
+		uint64 GetRealGUID() { return m_realGUID; }
+		uint32 GetRealGUIDLow() const { return GUID_LOPART(m_realGUID); }
+        uint32 GetRealGUIDMid() const { return GUID_ENPART(m_realGUID); }
+        uint32 GetRealGUIDHigh() const { return GUID_HIPART(m_realGUID); }
     protected:
         // Gamemaster whisper whitelist
         WhisperListContainer WhisperList;
@@ -2859,6 +2863,9 @@ class Player : public Unit, public GridObject<Player>
         InstanceTimeMap _instanceResetTimes;
         uint32 _pendingBindId;
         uint32 _pendingBindTimer;
+        
+        // InterRealm
+        uint64 m_realGUID;
 };
 
 void AddItemsSetItem(Player*player, Item* item);

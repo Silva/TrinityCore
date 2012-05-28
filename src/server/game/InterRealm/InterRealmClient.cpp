@@ -19,15 +19,16 @@
 #include "InterRealmClient.h"
 #include "InterRealmOpcodes.h"
 #include "InterRealmSocketHandler.h"
+#include "InterRealmMgr.h"
+#include "PlayerDump.h"
 #include "World.h"
 
-InterRealmClient::InterRealmClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize, InterRealmSocket* ssock): m_realRealmId(0), m_realmId(0),
+InterRealmClient::InterRealmClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize): m_realRealmId(0), m_realmId(0),
 m_tunnel_allowed(false), m_force_close(false)
 {
 	csock = sock;
 	csin = sin;
 	recsize = rsize;
-	ssock = ssock;
 }
 
 InterRealmClient::~InterRealmClient()
@@ -36,10 +37,11 @@ InterRealmClient::~InterRealmClient()
 
 void InterRealmClient::run()
 {
+	m_realmId = sIRMgr->RegisterClient(this);
 	while(!World::IsStopped() && csock != INVALID_SOCKET && m_force_close == false) {
 		char buffer[10240] = "";
 		int byteRecv = recv(csock, buffer, 10240, 0);
-		if(byteRecv != SOCKET_ERROR && byteRecv != 0)
+		if(byteRecv != SOCKET_ERROR/* && byteRecv != 0*/)
 			handlePacket(buffer,byteRecv);
 		else
 			m_force_close = true;
@@ -47,12 +49,181 @@ void InterRealmClient::run()
 	sLog->outDetail("Closing connection with %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
 	if(csock != INVALID_SOCKET)
 		close(csock);
-	ssock->deleteClient(this);
+	sIRMgr->RemoveClient(m_realmId);
 }
 
 void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 {
+	uint32 guidlow, accountid, xp, money, bytes1, bytes2, flags, instanceId;
+	uint16 mapId;
+	uint8 race,_class,gender,level;
+	float posX, posY, posZ, posO;
+	std::string _name;
+	recvPacket >> guidlow;
+	recvPacket >> accountid;
+	recvPacket >> _name;
+	recvPacket >> race;
+	recvPacket >> _class;
+	recvPacket >> gender;
+	recvPacket >> level;
+	recvPacket >> xp;
+	recvPacket >> money;
+	recvPacket >> bytes1;
+	recvPacket >> bytes2;
+	recvPacket >> flags;
+	recvPacket >> mapId;
+	recvPacket >> instanceId;
+	recvPacket >> posX;
+	recvPacket >> posY;
+	recvPacket >> posZ;
+	recvPacket >> posO;
 	
+	WorldSession* psess = new WorldSession(0,this,SEC_PLAYER,2,0,LocaleConstant(0),0,false);
+    Player* _player = new Player(psess);
+	
+	((Object*)_player)->_Create(guidlow, 0, HIGHGUID_PLAYER);
+    _player->SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(guidlow, 0, HIGHGUID_PLAYER));
+	
+	_player->SetUInt64Value(0,guidlow);
+	//_player->Setaccount ??
+	_player->SetName(_name);
+	_player->SetByteValue(UNIT_FIELD_BYTES_0, 0,race);
+	_player->SetByteValue(UNIT_FIELD_BYTES_0, 1,_class);
+	_player->SetByteValue(UNIT_FIELD_BYTES_0, 2,gender);
+	_player->SetLevel(level);
+	_player->SetUInt32Value(PLAYER_XP,xp);
+	_player->SetMoney(money);
+	_player->SetUInt32Value(PLAYER_BYTES,bytes1);
+	_player->SetUInt32Value(PLAYER_BYTES_2,bytes2);
+	_player->SetUInt32Value(PLAYER_FLAGS,flags);
+
+	uint16 ExtraFlags,atLoginFlags,zoneId;
+	uint8 stableSlots;
+	uint32 deathExpireTime, arenaPoints, HonorPoints;
+	
+	recvPacket >> ExtraFlags;
+	recvPacket >> stableSlots;
+	recvPacket >> atLoginFlags;
+	recvPacket >> zoneId;
+	recvPacket >> deathExpireTime;
+
+	recvPacket >> arenaPoints;
+	recvPacket >> HonorPoints;
+	/*recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION));
+	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION));
+	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS));
+	recvPacket >> uint16(GetUInt16Value(PLAYER_FIELD_KILLS, 0));
+	recvPacket >> uint16(GetUInt16Value(PLAYER_FIELD_KILLS, 1));
+	recvPacket >> uint32(GetUInt32Value(PLAYER_CHOSEN_TITLE));
+	recvPacket >> uint64(GetUInt64Value(PLAYER_FIELD_KNOWN_CURRENCIES));
+	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_WATCHED_FACTION_INDEX));
+	recvPacket >> uint16((uint16)(GetUInt32Value(PLAYER_BYTES_3) & 0xFFFE));
+	recvPacket >> uint32(GetHealth());
+
+	for (uint32 i = 0; i < MAX_POWERS; ++i)
+		recvPacket >> uint32(GetPower(Powers(i)));
+
+	recvPacket >> uint8(m_specsCount);
+	recvPacket >> uint8(m_activeSpec);
+
+	for (uint32 i = 0; i < EQUIPMENT_SLOT_END * 2; ++i)
+		recvPacket >> uint32(PLAYER_VISIBLE_ITEM_1_ENTRYID + i);
+
+	// ...and bags for enum opcode
+	for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+	{
+		if (Item* item = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+			recvPacket >> uint32(item->GetEntry());
+		else
+			recvPacket >> uint32(0);
+	}
+
+	recvPacket >> uint32(GetUInt32Value(PLAYER_AMMO_ID));
+
+	recvPacket >> uint8(GetByteValue(PLAYER_FIELD_BYTES, 2));
+	recvPacket >> uint32(m_grantableLevels);
+
+	// BG Data
+	recvPacket >> uint32(m_bgData.bgInstanceID);
+    recvPacket >> uint16(m_bgData.bgTeam);
+    recvPacket >> float(m_bgData.joinPos.GetPositionX());
+    recvPacket >> float(m_bgData.joinPos.GetPositionY());
+    recvPacket >> float(m_bgData.joinPos.GetPositionZ());
+    recvPacket >> float(m_bgData.joinPos.GetOrientation());
+    recvPacket >> uint16(m_bgData.joinPos.GetMapId());
+    recvPacket >> uint16(m_bgData.taxiPath[0]);
+    recvPacket >> uint16(m_bgData.taxiPath[1]);
+    recvPacket >> uint16(m_bgData.mountSpell);
+
+	// Talents
+    for (uint8 i = 0; i < MAX_TALENT_SPECS; ++i)
+    {
+		recvPacket >> uint32(m_talents[i].size());
+        for (PlayerTalentMap::iterator itr = m_talents[i]->begin(); itr != m_talents[i]->end();)
+        {
+                recvPacket >> uint32(itr->first);
+                recvPacket >> uint8(itr->second->spec);
+        }
+     }
+     
+     recvPacket >> uint32(m_spells.size());
+     for (PlayerSpellMap::iterator itr = m_spells.begin(); itr != m_spells.end();)
+    {
+            recvPacket >> uint32(itr->first);
+            recvPacket >> uint8(itr->second->active); //bool
+            recvPacket >> uint8(itr->second->disabled); //bool
+    }
+
+	recvPacket >> uint32(m_spellCooldowns.size());
+    for (SpellCooldowns::iterator itr = m_spellCooldowns.begin(); itr != m_spellCooldowns.end();)
+    {
+            recvPacket >> itr->first; // ?what
+            recvPacket >> uint32(itr->second.itemid);
+            recvPacket >> uint64(itr->second.end);
+    }
+    
+    recvPacket >> uint32(m_ownedAuras.size());
+    for (AuraMap::const_iterator itr = m_ownedAuras.begin(); itr != m_ownedAuras.end(); ++itr)
+    {
+        Aura* aura = itr->second;
+
+        int32 damage[MAX_SPELL_EFFECTS];
+        int32 baseDamage[MAX_SPELL_EFFECTS];
+        uint8 effMask = 0;
+        uint8 recalculateMask = 0;
+        for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+        {
+            if (AuraEffect const* effect = aura->GetEffect(i))
+            {
+                baseDamage[i] = effect->GetBaseAmount();
+                damage[i] = effect->GetAmount();
+                effMask |= 1 << i;
+                if (effect->CanBeRecalculated())
+                    recalculateMask |= 1 << i;
+            }
+            else
+            {
+                baseDamage[i] = 0;
+                damage[i] = 0;
+            }
+        }
+
+        recvPacket >> uint64(itr->second->GetCasterGUID());
+        recvPacket >> uint64(itr->second->GetCastItemGUID());
+        recvPacket >> uint32(itr->second->GetId());
+        recvPacket >> uint8(effMask);
+        recvPacket >> uint8(recalculateMask);
+        recvPacket >> uint8(itr->second->GetStackAmount());
+        recvPacket >> uint32(damage[0]);
+        recvPacket >> uint32(damage[1]);
+        recvPacket >> uint32(damage[2]);
+        recvPacket >> uint32(baseDamage[0]);
+        recvPacket >> uint32(baseDamage[1]);
+        recvPacket >> uint32(baseDamage[2]);
+        recvPacket >> uint32(itr->second->GetMaxDuration());
+        recvPacket >> uint32(itr->second->GetDuration());
+        recvPacket >> uint8(itr->second->GetCharges());
+    }*/
 }
 
 void InterRealmClient::Handle_WhoIam(WorldPacket &packet)
@@ -129,16 +300,25 @@ void InterRealmClient::Handle_TunneledPacket(WorldPacket& recvPacket)
 	recvPacket >> playerGuid;
 	recvPacket >> opcodeId;
 
-	WorldPacket tunPacket(opcodeId,recvPacket.size()-(8+2));
+	WorldPacket* tunPacket = new WorldPacket(opcodeId,recvPacket.size()-(8+2));
 	
 	for(int i=10;i<recvPacket.size();i++)
 	{
 		uint8 rawData;
 		recvPacket >> rawData;
-		tunPacket << rawData;
+		*tunPacket << uint8(rawData);
 	}
 	
+	IRPlayerSessions::iterator it = m_sessions.find(playerGuid);
+	if(it == m_sessions.end())
+	{
+		sLog->outError("Unregistered player want to use tunnel !",opcodeId);
+		return;
+	}
 	sLog->outDetail("Tunneled Packet received (opcode %x)",opcodeId);
+	
+	if(it->second)
+		it->second->QueuePacket(tunPacket);
 }
 
 void InterRealmClient::printInfos()
@@ -154,6 +334,22 @@ void InterRealmClient::Handle_Unhandled(WorldPacket& recvPacket)
 void InterRealmClient::Handle_Null(WorldPacket& recvPacket)
 {
 	sLog->outError("[WARN] Packet with Invalid IROpcode %u received !",recvPacket.GetOpcode());
+}
+
+void InterRealmClient::SendTunneledPacket(uint64 playerGuid, WorldPacket const* packet)
+{
+	if(playerGuid == 0)
+		return;
+	
+	WorldPacket tmpPacket(IR_CMSG_TUNNEL_PACKET,8+2+packet->size());
+	tmpPacket << (uint64)playerGuid;
+	tmpPacket << (uint16)packet->GetOpcode();
+
+	for(int i=0;i<packet->size();i++)
+		tmpPacket << (uint8)packet->contents()[i];
+	
+	sLog->outDetail("SendTunneledPacket with opcode %x",packet->GetOpcode());
+	SendPacket(&tmpPacket);
 }
 
 void InterRealmClient::SendPacket(WorldPacket const* packet)
@@ -215,4 +411,23 @@ void InterRealmClient::handlePacket(const char* buffer, int byteRecv)
 	}
 	else
 		sLog->outError("Invalid Packet with too short size recv from %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
+}
+
+void InterRealmClient::RegisterPlayerSession(uint64 guid, WorldSession* sess)
+{
+	if(!sess)
+		return;
+		
+	if(m_sessions.find(guid) == m_sessions.end())
+	{
+		m_sessions[guid] = sess;
+		if(sess->GetPlayer())
+			sess->GetPlayer()->SetRealGUID(guid);
+	}
+}
+
+void InterRealmClient::RemovePlayerSession(uint64 guid)
+{
+	if(m_sessions.find(guid) != m_sessions.end())
+		m_sessions.erase(guid);
 }

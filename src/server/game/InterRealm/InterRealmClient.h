@@ -30,10 +30,13 @@ enum irHeloResp
 
 class InterRealmSocket;
 
+// RealGUID there
+typedef std::map<uint64,WorldSession*> IRPlayerSessions;
+
 class InterRealmClient: public ACE_Based::Runnable
 {
 	public:
-		InterRealmClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize, InterRealmSocket* ssock);
+		InterRealmClient(SOCKET sock, SOCKADDR_IN sin, socklen_t rsize);
 		~InterRealmClient();
 		
 		// Thread
@@ -58,17 +61,23 @@ class InterRealmClient: public ACE_Based::Runnable
 		 
 		 // Packet
 		 void SendPacket(WorldPacket const* packet);
+		 void SendTunneledPacket(uint64 playerGuid, WorldPacket const* packet);
+		 // WorldSessions
+		 void RemovePlayerSession(uint64 guid);
 	private:
 		void handlePacket(const char* buffer, int byteRecv);
+		void RegisterPlayerSession(uint64 guid, WorldSession* sess);
+		
 		// Realmlist
 		int m_realRealmId;
 		int m_realmId;
+		
+		IRPlayerSessions m_sessions;
 		
 		// Socket, UDP maybe ?
 		SOCKET csock;
 		SOCKADDR_IN csin;
 		socklen_t recsize;
-		InterRealmSocket* ssock;
 		bool m_tunnel_allowed;
 		bool m_force_close;
 };
