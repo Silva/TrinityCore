@@ -88,7 +88,7 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 
 /// WorldSession constructor
 WorldSession::WorldSession(uint32 id, InterRealmClient* ir_socket, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale, uint32 recruiter, bool isARecruiter):
-m_muteTime(mute_time), m_timeOutTime(0), _player(NULL), m_ir_socket(ir_socket),
+m_muteTime(mute_time), m_timeOutTime(0), _player(NULL),
 _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
 m_inQueue(false), m_playerLoading(false), m_playerLogout(false),
 m_playerRecentlyLogout(false), m_playerSave(false),
@@ -97,6 +97,7 @@ m_sessionDbLocaleIndex(locale),
 m_latency(0), m_TutorialsChanged(false), recruiterId(recruiter),
 isRecruiter(isARecruiter), timeLastWhoCommand(0)
 {
+	m_ir_socket = ir_socket;
     _warden = NULL;
     InitializeQueryCallbackParameters();
 }
@@ -146,7 +147,6 @@ void WorldSession::SendPacket(WorldPacket const* packet)
 {
     if(!m_ir_socket || !_player)
 		return;
-		
 	m_ir_socket->SendTunneledPacket(_player->GetRealGUID(),packet);
 }
 

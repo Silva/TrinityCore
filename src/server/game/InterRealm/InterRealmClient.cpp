@@ -81,6 +81,11 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 	WorldSession* _sess;
 	Player* _player;
 	
+	// Check if map exists
+	const MapEntry* mapEntry = sMapStore.LookupEntry(mapId);
+	if(!mapEntry)
+		return;
+		
 	IRPlayerSessions::iterator itr = m_sessions.find(guidlow);
 	if(itr == m_sessions.end())
 	{
@@ -89,6 +94,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 		((Object*)_player)->_Create(guidlow, 0, HIGHGUID_PLAYER);
 		_player->SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(guidlow, 0, HIGHGUID_PLAYER));
 		_sess->SetPlayer(_player);
+		_player->SetRealGUID(guidlow);
 	}
 	else
 	{
@@ -111,41 +117,80 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 	_player->SetUInt32Value(PLAYER_BYTES_2,bytes2);
 	_player->SetUInt32Value(PLAYER_FLAGS,flags);
 
-	uint16 ExtraFlags,atLoginFlags,zoneId;
-	uint8 stableSlots;
-	uint32 deathExpireTime, arenaPoints, HonorPoints;
+	uint16 kills1,kills2;
+	uint32 deathExpireTimer, arenaPoints, HonorPoints, todayContrib, yesterdayContrib, lifeTimeHonorKills, chosenTitle;
+	uint32 stableSlots, watchedFactionIdx, health,ExtraFlags,atLoginFlags,zoneId,bytes3;
+	uint64 KnownCurrencies;
 	
 	recvPacket >> ExtraFlags;
 	recvPacket >> stableSlots;
 	recvPacket >> atLoginFlags;
 	recvPacket >> zoneId;
-	recvPacket >> deathExpireTime;
-
+	recvPacket >> deathExpireTimer;
 	recvPacket >> arenaPoints;
 	recvPacket >> HonorPoints;
+	recvPacket >> todayContrib;
+	recvPacket >> yesterdayContrib;
+	recvPacket >> lifeTimeHonorKills;
+	recvPacket >> kills1;
+	recvPacket >> kills2;
+	recvPacket >> chosenTitle;
+	recvPacket >> KnownCurrencies;
+	recvPacket >> watchedFactionIdx;
+	recvPacket >> bytes3;
+	recvPacket >> health;
 	
-	/*recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION));
-	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION));
-	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS));
-	recvPacket >> uint16(GetUInt16Value(PLAYER_FIELD_KILLS, 0));
-	recvPacket >> uint16(GetUInt16Value(PLAYER_FIELD_KILLS, 1));
-	recvPacket >> uint32(GetUInt32Value(PLAYER_CHOSEN_TITLE));
-	recvPacket >> uint64(GetUInt64Value(PLAYER_FIELD_KNOWN_CURRENCIES));
-	recvPacket >> uint32(GetUInt32Value(PLAYER_FIELD_WATCHED_FACTION_INDEX));
-	recvPacket >> uint16((uint16)(GetUInt32Value(PLAYER_BYTES_3) & 0xFFFE));
-	recvPacket >> uint32(GetHealth());
-
+	_player->SetExtraFlags(ExtraFlags);
+	_player->SetStableSlots(stableSlots);
+	_player->SetAtLoginFlags(atLoginFlags);
+	
+	_player->SetDeathExpireTimer(deathExpireTimer);
+	
+	_player->SetUInt32Value(PLAYER_FIELD_ARENA_CURRENCY,arenaPoints);
+	_player->SetUInt32Value(PLAYER_FIELD_HONOR_CURRENCY,HonorPoints);
+	_player->SetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION,todayContrib);
+	_player->SetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION,yesterdayContrib);
+	_player->SetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS,lifeTimeHonorKills);
+	_player->SetUInt16Value(PLAYER_FIELD_KILLS, 0, kills1);
+	_player->SetUInt16Value(PLAYER_FIELD_KILLS, 1, kills2);
+	_player->SetUInt32Value(PLAYER_CHOSEN_TITLE, chosenTitle);
+	_player->SetUInt64Value(PLAYER_FIELD_KNOWN_CURRENCIES, KnownCurrencies);
+	_player->SetUInt32Value(PLAYER_FIELD_WATCHED_FACTION_INDEX,watchedFactionIdx);
+	_player->SetUInt32Value(PLAYER_BYTES_3,bytes3);
+	_player->SetHealth(health);
+	
+	Map* map = sMapMgr->CreateMap(mapId, _player);
+	if(map)
+	{
+		_player->GetMotionMaster()->InitDefault();
+		_player->SetMap(map);
+		map->AddPlayerToMap(_player);
+		_player->TeleportTo(mapId, posX, posY, posZ, posO);
+	}
+	
 	for (uint32 i = 0; i < MAX_POWERS; ++i)
-		recvPacket >> uint32(GetPower(Powers(i)));
+	{
+		uint32 powerVal;
+		recvPacket >> powerVal;
+		_player->SetPower(Powers(i),powerVal);
+	}
 
-	recvPacket >> uint8(m_specsCount);
-	recvPacket >> uint8(m_activeSpec);
+	uint8 specCount, activeSpec;
+	recvPacket >> specCount;
+	recvPacket >> activeSpec;
+	
+	_player->SetSpecsCount(specCount);
+	_player->SetActiveSpec(activeSpec);
 
 	for (uint32 i = 0; i < EQUIPMENT_SLOT_END * 2; ++i)
-		recvPacket >> uint32(PLAYER_VISIBLE_ITEM_1_ENTRYID + i);
+	{
+		uint32 tmpItem;
+		recvPacket >> tmpItem;
+		_player->SetUInt32Value(PLAYER_VISIBLE_ITEM_1_ENTRYID + i,tmpItem);
+	}
 
 	// ...and bags for enum opcode
-	for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+	/*for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
 	{
 		if (Item* item = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
 			recvPacket >> uint32(item->GetEntry());
@@ -243,6 +288,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
     {
 		sWorld->AddSession(_sess);
 		m_sessions[guidlow] = _sess;
+		
 	}
 }
 
@@ -361,14 +407,13 @@ void InterRealmClient::SendTunneledPacket(uint64 playerGuid, WorldPacket const* 
 	if(playerGuid == 0)
 		return;
 	
-	WorldPacket tmpPacket(IR_CMSG_TUNNEL_PACKET,8+2+packet->size());
+	WorldPacket tmpPacket(IR_SMSG_TUNNEL_PACKET,8+2+packet->size());
 	tmpPacket << (uint64)playerGuid;
 	tmpPacket << (uint16)packet->GetOpcode();
 
 	for(int i=0;i<packet->size();i++)
 		tmpPacket << (uint8)packet->contents()[i];
 	
-	sLog->outDetail("SendTunneledPacket with opcode %x",packet->GetOpcode());
 	SendPacket(&tmpPacket);
 }
 
