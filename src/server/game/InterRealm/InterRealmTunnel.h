@@ -42,6 +42,7 @@ class InterRealmTunnel: public ACE_Based::Runnable
 		/*
 		 *  Handlers
 		 */
+		 void Handle_TunneledPacket(WorldPacket& recvPacket);
 		 
 		 void Handle_Hello(WorldPacket& packet);
 		 void Handle_WhoIam(WorldPacket& packet);

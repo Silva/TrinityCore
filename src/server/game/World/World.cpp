@@ -116,6 +116,8 @@ World::World()
     m_isClosed = false;
 
     m_CleaningFlags = 0;
+    
+    m_players.clear();
 }
 
 /// World destructor
@@ -128,6 +130,8 @@ World::~World()
         delete m_sessions.begin()->second;
         m_sessions.erase(m_sessions.begin());
     }
+    
+    m_players.clear();
 
     CliCommandHolder* command = NULL;
     while (cliCmdQueue.next(command))
@@ -195,6 +199,25 @@ WorldSession* World::FindSession(uint32 id) const
         return itr->second;                                 // also can return NULL for kicked session
     else
         return NULL;
+}
+
+/// Find a session by its id
+Player* World::FindPlayerByGuid(uint64 guid) const
+{
+   PlayerMap::const_iterator itr = m_players.find(guid);
+
+    if (itr != m_players.end())
+        return itr->second;                                 // also can return NULL for kicked session
+    else
+        return NULL;
+}
+
+void World::RemovePlayerFromList(uint64 guid)
+{
+	PlayerMap::iterator itr = m_players.find(guid);
+
+    if (itr != m_players.end())
+		m_players.erase(itr);
 }
 
 /// Remove a given session

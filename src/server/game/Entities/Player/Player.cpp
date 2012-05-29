@@ -900,6 +900,7 @@ Player::~Player()
     delete m_declinedname;
     delete m_runes;
 
+	sWorld->RemovePlayerFromList(GetGUID());
     sWorld->DecreasePlayerCount();
 }
 
@@ -18987,7 +18988,7 @@ void Player::SendDatasToInterRealm()
 	4+4+(strlen(GetName())+1)+1+1+1+1+4+4+4+4+4+2+4+4+4+4+4
 	);
 	pdump << uint32(GetGUIDLow());
-	pdump << uint32(GetSession()->GetAccountId());
+	//pdump << uint32(GetSession()->GetAccountId());
 	pdump << GetName();
 	pdump << uint8(getRace());
 	pdump << uint8(getClass());
@@ -19005,15 +19006,15 @@ void Player::SendDatasToInterRealm()
 	pdump << float(finiteAlways(GetPositionZ()));
 	pdump << float(finiteAlways(GetOrientation()));
 
-	pdump << uint16((uint16)m_ExtraFlags);
-	pdump << uint8(m_stableSlots);
-	pdump << uint16((uint16)m_atLoginFlags);
-	pdump << uint16(GetZoneId());
+	pdump << uint32(m_ExtraFlags);
+	pdump << uint32(m_stableSlots);
+	pdump << uint32(m_atLoginFlags);
+	pdump << uint32(GetZoneId());
 	pdump << uint32(m_deathExpireTime);
 
 	pdump << uint32(GetArenaPoints());
 	pdump << uint32(GetHonorPoints());
-	/*pdump << uint32(GetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION));
+	pdump << uint32(GetUInt32Value(PLAYER_FIELD_TODAY_CONTRIBUTION));
 	pdump << uint32(GetUInt32Value(PLAYER_FIELD_YESTERDAY_CONTRIBUTION));
 	pdump << uint32(GetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS));
 	pdump << uint16(GetUInt16Value(PLAYER_FIELD_KILLS, 0));
@@ -19021,7 +19022,7 @@ void Player::SendDatasToInterRealm()
 	pdump << uint32(GetUInt32Value(PLAYER_CHOSEN_TITLE));
 	pdump << uint64(GetUInt64Value(PLAYER_FIELD_KNOWN_CURRENCIES));
 	pdump << uint32(GetUInt32Value(PLAYER_FIELD_WATCHED_FACTION_INDEX));
-	pdump << uint16((uint16)(GetUInt32Value(PLAYER_BYTES_3) & 0xFFFE));
+	pdump << uint32(GetUInt32Value(PLAYER_BYTES_3));
 	pdump << uint32(GetHealth());
 
 	for (uint32 i = 0; i < MAX_POWERS; ++i)
@@ -19031,10 +19032,10 @@ void Player::SendDatasToInterRealm()
 	pdump << uint8(m_activeSpec);
 
 	for (uint32 i = 0; i < EQUIPMENT_SLOT_END * 2; ++i)
-		pdump << uint32(PLAYER_VISIBLE_ITEM_1_ENTRYID + i);
+		pdump << uint32(GetUInt32Value(PLAYER_VISIBLE_ITEM_1_ENTRYID + i));
 
 	// ...and bags for enum opcode
-	for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+	/*for (uint32 i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
 	{
 		if (Item* item = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
 			pdump << uint32(item->GetEntry());

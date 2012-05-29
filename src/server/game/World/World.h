@@ -523,6 +523,7 @@ struct CliCommandHolder
 };
 
 typedef UNORDERED_MAP<uint32, WorldSession*> SessionMap;
+typedef std::map<uint64, Player*> PlayerMap;
 
 struct CharacterNameData
 {
@@ -542,11 +543,15 @@ class World
         ~World();
 
         WorldSession* FindSession(uint32 id) const;
+        Player* FindPlayerByGuid(uint64 guid) const;
         void AddSession(WorldSession* s);
         void SendAutoBroadcast();
         bool RemoveSession(uint32 id);
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();
+        PlayerMap GetAllPlayers() { return m_players; }
+        void AddPlayerToList(uint64 guid, Player* player) { m_players[guid] = player; }
+        void RemovePlayerFromList(uint64 guid);
         const SessionMap& GetAllSessions() const { return m_sessions; }
         uint32 GetActiveAndQueuedSessionCount() const { return m_sessions.size(); }
         uint32 GetActiveSessionCount() const { return m_sessions.size() - m_QueuedPlayer.size(); }
@@ -792,6 +797,7 @@ class World
         uint32 m_currentTime;
 
         SessionMap m_sessions;
+        PlayerMap m_players;
         typedef UNORDERED_MAP<uint32, time_t> DisconnectMap;
         DisconnectMap m_disconnects;
         uint32 m_maxActiveSessionCount;

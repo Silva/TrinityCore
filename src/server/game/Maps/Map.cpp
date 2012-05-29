@@ -399,6 +399,7 @@ bool Map::AddPlayerToMap(Player* player)
     ASSERT (player->GetMap() == this);
     player->SetMap(this);
     player->AddToWorld();
+    sWorld->AddPlayerToList(player->GetGUID(),player);
 
     SendInitSelf(player);
     SendInitTransports(player);

@@ -71,38 +71,40 @@ void InterRealmTunnel::run()
 			char buffer[10240];
 			bzero(buffer,10240);
 			int byteRecv = recv(m_sock, buffer, 10240, 0);
-			if(byteRecv != SOCKET_ERROR/* && byteRecv != 0*/) {
-				if(byteRecv > 0) {
-					// Create packet
-					WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
-					for(int i=2;i<byteRecv;i++)
-						*packet << (uint8)buffer[i];
-					
-					// Handle Packet
-					if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
-					{
-						try
+			if(byteRecv != SOCKET_ERROR) {
+				if(byteRecv != 0) {
+					if(byteRecv > 0) {
+						// Create packet
+						WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
+						for(int i=2;i<byteRecv;i++)
+							*packet << (uint8)buffer[i];
+							
+						// Handle Packet
+						if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
 						{
-							IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
-							(this->*IRopHandle.handler)(*packet);
-						}
-						catch(ByteBufferException &)
-						{
-							sLog->outError("[FATAL] InterRealmTunnel ByteBufferException occured while parsing a packet (opcode: %u) from client %s:%d Skipped packet.",
-									packet->GetOpcode(), inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
-							if (sLog->IsOutDebug())
+							try
 							{
-								sLog->outDebug(LOG_FILTER_NETWORKIO, "Dumping error causing packet:");
-								packet->hexlike();
+								IROpcodeHandler &IRopHandle = IRopcodeTable[packet->GetOpcode()];
+								(this->*IRopHandle.handler)(*packet);
+							}
+							catch(ByteBufferException &)
+							{
+								sLog->outError("[FATAL] InterRealmTunnel ByteBufferException occured while parsing a packet (opcode: %u) from client %s:%d Skipped packet.",
+										packet->GetOpcode(), inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
+								if (sLog->IsOutDebug())
+								{
+									sLog->outDebug(LOG_FILTER_NETWORKIO, "Dumping error causing packet:");
+									packet->hexlike();
+								}
 							}
 						}
+						else
+							this->Handle_Unhandled(*packet);
+							
+						// Delete Packet from memory
+						if(packet != NULL)
+							delete packet;
 					}
-					else
-						this->Handle_Unhandled(*packet);
-						
-					// Delete Packet from memory
-					if(packet != NULL)
-						delete packet;
 				}
 			}
 			else
@@ -118,6 +120,30 @@ void InterRealmTunnel::run()
 			sLog->outError("Connection Lost with %s:%d (sock %d)",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
 	}
 	sLog->outString("Close InterRealm Thread",inet_ntoa(m_sin.sin_addr), htons(m_sin.sin_port),m_sock);
+}
+
+void InterRealmTunnel::Handle_TunneledPacket(WorldPacket& recvPacket)
+{
+	uint64 playerGuid;
+	uint16 opcodeId;
+	recvPacket >> playerGuid;
+	recvPacket >> opcodeId;
+
+	WorldPacket* tunPacket = new WorldPacket(opcodeId,recvPacket.size()-(8+2));
+	
+	for(int i=10;i<recvPacket.size();i++)
+	{
+		uint8 rawData;
+		recvPacket >> rawData;
+		*tunPacket << uint8(rawData);
+	}
+	
+	sLog->outError("Tunneled Packet received (opcode %x)",opcodeId);
+	
+	PlayerMap players = sWorld->GetAllPlayers();
+	PlayerMap::iterator itr = players.find(playerGuid);
+	if(itr != players.end())
+		itr->second->GetSession()->QueuePacket(tunPacket);
 }
 
 void InterRealmTunnel::Handle_WhoIam(WorldPacket& packet)
