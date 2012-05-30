@@ -143,7 +143,7 @@ void InterRealmTunnel::Handle_TunneledPacket(WorldPacket& recvPacket)
 	PlayerMap players = sWorld->GetAllPlayers();
 	PlayerMap::iterator itr = players.find(playerGuid);
 	if(itr != players.end())
-		itr->second->GetSession()->QueuePacket(tunPacket);
+		itr->second->GetSession()->SendPacket(tunPacket);
 }
 
 void InterRealmTunnel::Handle_WhoIam(WorldPacket& packet)
