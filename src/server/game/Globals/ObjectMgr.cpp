@@ -227,7 +227,7 @@ bool SpellClickInfo::IsFitToRequirements(Unit const* clicker, Unit const* clicke
 }
 
 ObjectMgr::ObjectMgr(): _auctionId(1), _equipmentSetGuid(1),
-    _itemTextId(1), _mailId(1), _hiPetNumber(1), _hiCharGuid(1),
+    _itemTextId(1), _hiPetNumber(1), _hiCharGuid(1),
     _hiCreatureGuid(1), _hiPetGuid(1), _hiVehicleGuid(1), _hiItemGuid(1),
     _hiGoGuid(1), _hiDoGuid(1), _hiCorpseGuid(1), _hiMoTransGuid(1)
 {}
@@ -4248,27 +4248,6 @@ void ObjectMgr::LoadQuests()
             }
         }
 
-        if (qinfo->RewardMailTemplateId)
-        {
-            if (!sMailTemplateStore.LookupEntry(qinfo->RewardMailTemplateId))
-            {
-                sLog->outErrorDb("Quest %u has `RewardMailTemplateId` = %u but mail template  %u does not exist, quest will not have a mail reward.",
-                    qinfo->GetQuestId(), qinfo->RewardMailTemplateId, qinfo->RewardMailTemplateId);
-                qinfo->RewardMailTemplateId = 0;               // no mail will send to player
-                qinfo->RewardMailDelay = 0;                // no mail will send to player
-            }
-            else if (usedMailTemplates.find(qinfo->RewardMailTemplateId) != usedMailTemplates.end())
-            {
-                std::map<uint32, uint32>::const_iterator used_mt_itr = usedMailTemplates.find(qinfo->RewardMailTemplateId);
-                sLog->outErrorDb("Quest %u has `RewardMailTemplateId` = %u but mail template  %u already used for quest %u, quest will not have a mail reward.",
-                    qinfo->GetQuestId(), qinfo->RewardMailTemplateId, qinfo->RewardMailTemplateId, used_mt_itr->second);
-                qinfo->RewardMailTemplateId = 0;               // no mail will send to player
-                qinfo->RewardMailDelay = 0;                // no mail will send to player
-            }
-            else
-                usedMailTemplates[qinfo->RewardMailTemplateId] = qinfo->GetQuestId();
-        }
-
         if (qinfo->NextQuestIdChain)
         {
             QuestMap::iterator qNextItr = _questTemplates.find(qinfo->NextQuestIdChain);
@@ -5288,136 +5267,6 @@ void ObjectMgr::LoadNpcTextLocales()
     sLog->outString();
 }
 
-//not very fast function but it is called only once a day, or on starting-up
-void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
-{
-    uint32 oldMSTime = getMSTime();
-
-    time_t curTime = time(NULL);
-    tm* lt = localtime(&curTime);
-    uint64 basetime(curTime);
-    sLog->outDetail("Returning mails current time: hour: %d, minute: %d, second: %d ", lt->tm_hour, lt->tm_min, lt->tm_sec);
-
-    // Delete all old mails without item and without body immediately, if starting server
-    if (!serverUp)
-    {
-        PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_EMPTY_EXPIRED_MAIL);
-        stmt->setUInt64(0, basetime);
-        CharacterDatabase.Execute(stmt);
-    }
-    PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_EXPIRED_MAIL);
-    stmt->setUInt64(0, basetime);
-    PreparedQueryResult result = CharacterDatabase.Query(stmt);
-    if (!result)
-    {
-        sLog->outString(">> No expired mails found.");
-        sLog->outString();
-        return;                                             // any mails need to be returned or deleted
-    }
-
-    std::map<uint32 /*messageId*/, MailItemInfoVec> itemsCache;
-    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_EXPIRED_MAIL_ITEMS);
-    stmt->setUInt32(0, (uint32)basetime);
-    if (PreparedQueryResult items = CharacterDatabase.Query(stmt))
-    {
-        MailItemInfo item;
-        do
-        {
-            Field* fields = items->Fetch();
-            item.item_guid = fields[0].GetUInt32();
-            item.item_template = fields[1].GetUInt32();
-            uint32 mailId = fields[2].GetUInt32();
-            itemsCache[mailId].push_back(item);
-        } while (items->NextRow());
-    }
-
-    uint32 deletedCount = 0;
-    uint32 returnedCount = 0;
-    do
-    {
-        Field* fields = result->Fetch();
-        Mail* m = new Mail;
-        m->messageID      = fields[0].GetUInt32();
-        m->messageType    = fields[1].GetUInt8();
-        m->sender         = fields[2].GetUInt32();
-        m->receiver       = fields[3].GetUInt32();
-        bool has_items    = fields[4].GetBool();
-        m->expire_time    = time_t(fields[5].GetUInt32());
-        m->deliver_time   = 0;
-        m->COD            = fields[6].GetUInt32();
-        m->checked        = fields[7].GetUInt8();
-        m->mailTemplateId = fields[8].GetInt16();
-
-        Player* player = NULL;
-        if (serverUp)
-            player = ObjectAccessor::FindPlayer((uint64)m->receiver);
-
-        if (player && player->m_mailsLoaded)
-        {                                                   // this code will run very improbably (the time is between 4 and 5 am, in game is online a player, who has old mail
-            // his in mailbox and he has already listed his mails)
-            delete m;
-            continue;
-        }
-
-        // Delete or return mail
-        if (has_items)
-        {
-            // read items from cache
-            m->items.swap(itemsCache[m->messageID]);
-
-            // if it is mail from non-player, or if it's already return mail, it shouldn't be returned, but deleted
-            if (m->messageType != MAIL_NORMAL || (m->checked & (MAIL_CHECK_MASK_COD_PAYMENT | MAIL_CHECK_MASK_RETURNED)))
-            {
-                // mail open and then not returned
-                for (MailItemInfoVec::iterator itr2 = m->items.begin(); itr2 != m->items.end(); ++itr2)
-                {
-                    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ITEM_INSTANCE);
-                    stmt->setUInt32(0, itr2->item_guid);
-                    CharacterDatabase.Execute(stmt);
-                }
-            }
-            else
-            {
-                // Mail will be returned
-                stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_MAIL_RETURNED);
-                stmt->setUInt32(0, m->receiver);
-                stmt->setUInt32(1, m->sender);
-                stmt->setUInt32(2, basetime + 30 * DAY);
-                stmt->setUInt32(3, basetime);
-                stmt->setUInt8 (4, uint8(MAIL_CHECK_MASK_RETURNED));
-                stmt->setUInt32(5, m->messageID);
-                CharacterDatabase.Execute(stmt);
-                for (MailItemInfoVec::iterator itr2 = m->items.begin(); itr2 != m->items.end(); ++itr2)
-                {
-                    // Update receiver in mail items for its proper delivery, and in instance_item for avoid lost item at sender delete
-                    stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_MAIL_ITEM_RECEIVER);
-                    stmt->setUInt32(0, m->sender);
-                    stmt->setUInt32(1, itr2->item_guid);
-                    CharacterDatabase.Execute(stmt);
-
-                    stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_ITEM_OWNER);
-                    stmt->setUInt32(0, m->sender);
-                    stmt->setUInt32(1, itr2->item_guid);
-                    CharacterDatabase.Execute(stmt);
-                }
-                delete m;
-                ++returnedCount;
-                continue;
-            }
-        }
-
-        stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_BY_ID);
-        stmt->setUInt32(0, m->messageID);
-        CharacterDatabase.Execute(stmt);
-        delete m;
-        ++deletedCount;
-    }
-    while (result->NextRow());
-
-    sLog->outString(">> Processed %u expired mails: %u deleted and %u returned in %u ms", deletedCount + returnedCount, deletedCount, returnedCount, GetMSTimeDiffToNow(oldMSTime));
-    sLog->outString();
-}
-
 void ObjectMgr::LoadQuestAreaTriggers()
 {
     uint32 oldMSTime = getMSTime();
@@ -6171,8 +6020,6 @@ void ObjectMgr::SetHighestGuids()
 
     // Cleanup other tables from not existed guids ( >= _hiItemGuid)
     CharacterDatabase.PExecute("DELETE FROM character_inventory WHERE item >= '%u'", _hiItemGuid);      // One-time query
-    CharacterDatabase.PExecute("DELETE FROM mail_items WHERE item_guid >= '%u'", _hiItemGuid);          // One-time query
-    CharacterDatabase.PExecute("DELETE FROM auctionhouse WHERE itemguid >= '%u'", _hiItemGuid);         // One-time query
     CharacterDatabase.PExecute("DELETE FROM guild_bank_item WHERE item_guid >= '%u'", _hiItemGuid);     // One-time query
 
     result = WorldDatabase.Query("SELECT MAX(guid) FROM gameobject");
@@ -6186,10 +6033,6 @@ void ObjectMgr::SetHighestGuids()
     result = CharacterDatabase.Query("SELECT MAX(id) FROM auctionhouse");
     if (result)
         _auctionId = (*result)[0].GetUInt32()+1;
-
-    result = CharacterDatabase.Query("SELECT MAX(id) FROM mail");
-    if (result)
-        _mailId = (*result)[0].GetUInt32()+1;
 
     result = CharacterDatabase.Query("SELECT MAX(corpseGuid) FROM corpse");
     if (result)
@@ -6230,16 +6073,6 @@ uint64 ObjectMgr::GenerateEquipmentSetGuid()
         World::StopNow(ERROR_EXIT_CODE);
     }
     return _equipmentSetGuid++;
-}
-
-uint32 ObjectMgr::GenerateMailID()
-{
-    if (_mailId >= 0xFFFFFFFE)
-    {
-        sLog->outError("Mail ids overflow!! Can't continue, shutting down server. ");
-        World::StopNow(ERROR_EXIT_CODE);
-    }
-    return _mailId++;
 }
 
 uint32 ObjectMgr::GenerateLowGuid(HighGuid guidhigh)
@@ -8034,67 +7867,6 @@ bool ObjectMgr::DeleteGameTele(const std::string& name)
     }
 
     return false;
-}
-
-void ObjectMgr::LoadMailLevelRewards()
-{
-    uint32 oldMSTime = getMSTime();
-
-    _mailLevelRewardStore.clear();                           // for reload case
-
-    //                                                 0        1             2            3
-    QueryResult result = WorldDatabase.Query("SELECT level, raceMask, mailTemplateId, senderEntry FROM mail_level_reward");
-
-    if (!result)
-    {
-        sLog->outErrorDb(">> Loaded 0 level dependent mail rewards. DB table `mail_level_reward` is empty.");
-        sLog->outString();
-        return;
-    }
-
-    uint32 count = 0;
-
-    do
-    {
-        Field* fields = result->Fetch();
-
-        uint8 level           = fields[0].GetUInt8();
-        uint32 raceMask       = fields[1].GetUInt32();
-        uint32 mailTemplateId = fields[2].GetUInt32();
-        uint32 senderEntry    = fields[3].GetUInt32();
-
-        if (level > MAX_LEVEL)
-        {
-            sLog->outErrorDb("Table `mail_level_reward` have data for level %u that more supported by client (%u), ignoring.", level, MAX_LEVEL);
-            continue;
-        }
-
-        if (!(raceMask & RACEMASK_ALL_PLAYABLE))
-        {
-            sLog->outErrorDb("Table `mail_level_reward` have raceMask (%u) for level %u that not include any player races, ignoring.", raceMask, level);
-            continue;
-        }
-
-        if (!sMailTemplateStore.LookupEntry(mailTemplateId))
-        {
-            sLog->outErrorDb("Table `mail_level_reward` have invalid mailTemplateId (%u) for level %u that invalid not include any player races, ignoring.", mailTemplateId, level);
-            continue;
-        }
-
-        if (!GetCreatureTemplate(senderEntry))
-        {
-            sLog->outErrorDb("Table `mail_level_reward` have not existed sender creature entry (%u) for level %u that invalid not include any player races, ignoring.", senderEntry, level);
-            continue;
-        }
-
-        _mailLevelRewardStore[level].push_back(MailLevelReward(raceMask, mailTemplateId, senderEntry));
-
-        ++count;
-    }
-    while (result->NextRow());
-
-    sLog->outString(">> Loaded %u level dependent mail rewards in %u ms", count, GetMSTimeDiffToNow(oldMSTime));
-    sLog->outString();
 }
 
 void ObjectMgr::AddSpellToTrainer(uint32 entry, uint32 spell, uint32 spellCost, uint32 reqSkill, uint32 reqSkillValue, uint32 reqLevel)

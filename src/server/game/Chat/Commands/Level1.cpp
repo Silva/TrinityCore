@@ -22,7 +22,6 @@
 #include "WorldSession.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "TicketMgr.h"
 #include "Player.h"
 #include "AccountMgr.h"
 #include "Opcodes.h"
@@ -622,51 +621,6 @@ bool ChatHandler::HandleSaveAllCommand(const char* /*args*/)
 {
     sObjectAccessor->SaveAllPlayers();
     SendSysMessage(LANG_PLAYERS_SAVED);
-    return true;
-}
-
-//Send mail by command
-bool ChatHandler::HandleSendMailCommand(const char* args)
-{
-    // format: name "subject text" "mail text"
-    Player* target;
-    uint64 target_guid;
-    std::string target_name;
-    if (!extractPlayerTarget((char*)args, &target, &target_guid, &target_name))
-        return false;
-
-    char* tail1 = strtok(NULL, "");
-    if (!tail1)
-        return false;
-
-    char* msgSubject = extractQuotedArg(tail1);
-    if (!msgSubject)
-        return false;
-
-    char* tail2 = strtok(NULL, "");
-    if (!tail2)
-        return false;
-
-    char* msgText = extractQuotedArg(tail2);
-    if (!msgText)
-        return false;
-
-    // msgSubject, msgText isn't NUL after prev. check
-    std::string subject = msgSubject;
-    std::string text    = msgText;
-
-    // from console show not existed sender
-    MailSender sender(MAIL_NORMAL, m_session ? m_session->GetPlayer()->GetGUIDLow() : 0, MAIL_STATIONERY_GM);
-
-    //- TODO: Fix poor design
-    SQLTransaction trans = CharacterDatabase.BeginTransaction();
-    MailDraft(subject, text)
-        .SendMailTo(trans, MailReceiver(target, GUID_LOPART(target_guid)), sender);
-
-    CharacterDatabase.CommitTransaction(trans);
-
-    std::string nameLink = playerLink(target_name);
-    PSendSysMessage(LANG_MAIL_SENT, nameLink.c_str());
     return true;
 }
 

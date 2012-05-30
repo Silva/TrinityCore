@@ -25,12 +25,10 @@ EndScriptData */
 #include "ScriptMgr.h"
 #include "ObjectMgr.h"
 #include "SpellMgr.h"
-#include "TicketMgr.h"
 #include "MapManager.h"
 #include "CreatureEventAIMgr.h"
 #include "DisableMgr.h"
 #include "LFGMgr.h"
-#include "AuctionHouseMgr.h"
 #include "CreatureTextMgr.h"
 #include "SmartAI.h"
 #include "SkillDiscovery.h"
@@ -64,7 +62,6 @@ public:
         };
         static ChatCommand reloadCommandTable[] =
         {
-            { "auctions",                     SEC_ADMINISTRATOR, true,  &HandleReloadAuctionsCommand,                   "", NULL },
             { "access_requirement",           SEC_ADMINISTRATOR, true,  &HandleReloadAccessRequirementCommand,          "", NULL },
             { "achievement_criteria_data",    SEC_ADMINISTRATOR, true,  &HandleReloadAchievementCriteriaDataCommand,    "", NULL },
             { "achievement_reward",           SEC_ADMINISTRATOR, true,  &HandleReloadAchievementRewardCommand,          "", NULL },
@@ -97,7 +94,6 @@ public:
             { "gameobject_loot_template",     SEC_ADMINISTRATOR, true,  &HandleReloadLootTemplatesGameobjectCommand,    "", NULL },
             { "gameobject_questrelation",     SEC_ADMINISTRATOR, true,  &HandleReloadGOQuestRelationsCommand,           "", NULL },
             { "gameobject_scripts",           SEC_ADMINISTRATOR, true,  &HandleReloadGameObjectScriptsCommand,          "", NULL },
-            { "gm_tickets",                   SEC_ADMINISTRATOR, true,  &HandleReloadGMTicketsCommand,                  "", NULL },
             { "gossip_menu",                  SEC_ADMINISTRATOR, true,  &HandleReloadGossipMenuCommand,                 "", NULL },
             { "gossip_menu_option",           SEC_ADMINISTRATOR, true,  &HandleReloadGossipMenuOptionCommand,           "", NULL },
             { "item_enchantment_template",    SEC_ADMINISTRATOR, true,  &HandleReloadItemEnchantementsCommand,          "", NULL },
@@ -115,7 +111,6 @@ public:
             { "locales_page_text",            SEC_ADMINISTRATOR, true,  &HandleReloadLocalesPageTextCommand,            "", NULL },
             { "locales_points_of_interest",   SEC_ADMINISTRATOR, true,  &HandleReloadLocalesPointsOfInterestCommand,    "", NULL },
             { "locales_quest",                SEC_ADMINISTRATOR, true,  &HandleReloadLocalesQuestCommand,               "", NULL },
-            { "mail_level_reward",            SEC_ADMINISTRATOR, true,  &HandleReloadMailLevelRewardCommand,            "", NULL },
             { "mail_loot_template",           SEC_ADMINISTRATOR, true,  &HandleReloadLootTemplatesMailCommand,          "", NULL },
             { "milling_loot_template",        SEC_ADMINISTRATOR, true,  &HandleReloadLootTemplatesMillingCommand,       "", NULL },
             { "npc_spellclick_spells",        SEC_ADMINISTRATOR, true,  &HandleReloadSpellClickSpellsCommand,           "", NULL},
@@ -168,13 +163,6 @@ public:
         return commandTable;
     }
 
-    //reload commands
-    static bool HandleReloadGMTicketsCommand(ChatHandler* /*handler*/, const char* /*args*/)
-    {
-        sTicketMgr->LoadTickets();
-        return true;
-    }
-
     static bool HandleReloadAllCommand(ChatHandler* handler, const char* /*args*/)
     {
         HandleReloadSkillFishingBaseLevelCommand(handler, "");
@@ -191,7 +179,6 @@ public:
         HandleReloadAllLocalesCommand(handler, "");
 
         HandleReloadAccessRequirementCommand(handler, "");
-        HandleReloadMailLevelRewardCommand(handler, "");
         HandleReloadCommandCommand(handler, "");
         HandleReloadReservedNameCommand(handler, "");
         HandleReloadTrinityStringCommand(handler, "");
@@ -1245,24 +1232,6 @@ public:
         sLog->outString("Re-Loading Locales Quest ... ");
         sObjectMgr->LoadQuestLocales();
         handler->SendGlobalGMSysMessage("DB table `locales_quest` reloaded.");
-        return true;
-    }
-
-    static bool HandleReloadMailLevelRewardCommand(ChatHandler* handler, const char* /*args*/)
-    {
-        sLog->outString("Re-Loading Player level dependent mail rewards...");
-        sObjectMgr->LoadMailLevelRewards();
-        handler->SendGlobalGMSysMessage("DB table `mail_level_reward` reloaded.");
-        return true;
-    }
-
-    static bool HandleReloadAuctionsCommand(ChatHandler* handler, const char* /*args*/)
-    {
-        ///- Reload dynamic data tables from the database
-        sLog->outString("Re-Loading Auctions...");
-        sAuctionMgr->LoadAuctionItems();
-        sAuctionMgr->LoadAuctions();
-        handler->SendGlobalGMSysMessage("Auctions reloaded.");
         return true;
     }
 

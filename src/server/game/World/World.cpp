@@ -35,11 +35,9 @@
 #include "World.h"
 #include "AccountMgr.h"
 #include "AchievementMgr.h"
-#include "AuctionHouseMgr.h"
 #include "ObjectMgr.h"
 #include "ArenaTeamMgr.h"
 #include "GuildMgr.h"
-#include "TicketMgr.h"
 #include "CreatureEventAIMgr.h"
 #include "SpellMgr.h"
 #include "GroupMgr.h"
@@ -1510,9 +1508,6 @@ void World::SetInitialWorldSettings()
     sLog->outString("Loading Player Corpses...");
     sObjectMgr->LoadCorpses();
 
-    sLog->outString("Loading Player level dependent mail rewards...");
-    sObjectMgr->LoadMailLevelRewards();
-
     // Loot tables
     LoadLootTables();
 
@@ -1537,16 +1532,6 @@ void World::SetInitialWorldSettings()
     sAchievementMgr->LoadRewardLocales();
     sLog->outString("Loading Completed Achievements...");
     sAchievementMgr->LoadCompletedAchievements();
-
-    // Delete expired auctions before loading
-    sLog->outString("Deleting expired auctions...");
-    sAuctionMgr->DeleteExpiredAuctionsAtStartup();
-
-    ///- Load dynamic data tables from the database
-    sLog->outString("Loading Item Auctions...");
-    sAuctionMgr->LoadAuctionItems();
-    sLog->outString("Loading Auctions...");
-    sAuctionMgr->LoadAuctions();
 
     sGuildMgr->LoadGuilds();
 
@@ -1607,18 +1592,8 @@ void World::SetInitialWorldSettings()
     sLog->outString("Loading faction change reputation pairs...");
     sObjectMgr->LoadFactionChangeReputations();
 
-    sLog->outString("Loading GM tickets...");
-    sTicketMgr->LoadTickets();
-
-    sLog->outString("Loading GM surveys...");
-    sTicketMgr->LoadSurveys();
-
     sLog->outString("Loading client addons...");
     AddonMgr::LoadFromDB();
-
-    ///- Handle outdated emails (delete/return)
-    sLog->outString("Returning old mails...");
-    sObjectMgr->ReturnOrDeleteOldMails(false);
 
     sLog->outString("Loading Autobroadcasts...");
     LoadAutobroadcasts();
@@ -1671,7 +1646,6 @@ void World::SetInitialWorldSettings()
                             realmID, uint32(m_startTime), _FULLVERSION);       // One-time query
 
     m_timers[WUPDATE_WEATHERS].SetInterval(1*IN_MILLISECONDS);
-    m_timers[WUPDATE_AUCTIONS].SetInterval(MINUTE*IN_MILLISECONDS);
     m_timers[WUPDATE_UPTIME].SetInterval(m_int_configs[CONFIG_UPTIME_UPDATE]*MINUTE*IN_MILLISECONDS);
                                                             //Update "uptime" table based on configuration entry in minutes.
     m_timers[WUPDATE_CORPSES].SetInterval(20 * MINUTE * IN_MILLISECONDS);
@@ -1682,15 +1656,6 @@ void World::SetInitialWorldSettings()
     m_timers[WUPDATE_DELETECHARS].SetInterval(DAY*IN_MILLISECONDS); // check for chars to delete every day
 
     m_timers[WUPDATE_PINGDB].SetInterval(getIntConfig(CONFIG_DB_PING_INTERVAL)*MINUTE*IN_MILLISECONDS);    // Mysql ping time in minutes
-
-    //to set mailtimer to return mails every day between 4 and 5 am
-    //mailtimer is increased when updating auctions
-    //one second is 1000 -(tested on win system)
-    //TODO: Get rid of magic numbers
-    mail_timer = ((((localtime(&m_gameTime)->tm_hour + 20) % 24)* HOUR * IN_MILLISECONDS) / m_timers[WUPDATE_AUCTIONS].GetInterval());
-                                                            //1440
-    mail_timer_expires = ((DAY * IN_MILLISECONDS) / (m_timers[WUPDATE_AUCTIONS].GetInterval()));
-    sLog->outDetail("Mail timer set to: " UI64FMTD ", mail return is called every " UI64FMTD " minutes", uint64(mail_timer), uint64(mail_timer_expires));
 
     ///- Initilize static helper structures
     AIRegistry::Initialize();
@@ -1712,8 +1677,6 @@ void World::SetInitialWorldSettings()
 
     sLog->outString("Starting Arena Season...");
     sGameEventMgr->StartArenaSeason();
-
-    sTicketMgr->Initialize();
 
     ///- Initialize Battlegrounds
     sLog->outString("Starting Battleground System");
@@ -1913,23 +1876,6 @@ void World::Update(uint32 diff)
 
     if (m_gameTime > m_NextRandomBGReset)
         ResetRandomBG();
-
-    /// <ul><li> Handle auctions when the timer has passed
-    if (m_timers[WUPDATE_AUCTIONS].Passed())
-    {
-        m_timers[WUPDATE_AUCTIONS].Reset();
-
-        ///- Update mails (return old mails with item, or delete them)
-        //(tested... works on win)
-        if (++mail_timer > mail_timer_expires)
-        {
-            mail_timer = 0;
-            sObjectMgr->ReturnOrDeleteOldMails(true);
-        }
-
-        ///- Handle expired auctions
-        sAuctionMgr->Update();
-    }
 
     /// <li> Handle session updates when the timer has passed
     RecordTimeDiff(NULL);

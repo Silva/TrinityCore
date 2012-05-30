@@ -24,7 +24,6 @@
 #include "ObjectMgr.h"
 #include "ArenaTeamMgr.h"
 #include "GuildMgr.h"
-#include "AuctionHouseMgr.h"
 #include "AccountMgr.h"
 #include "PlayerDump.h"
 #include "SpellMgr.h"
@@ -515,43 +514,6 @@ bool ChatHandler::HandleListItemCommand(const char *args)
             count = 0;
     }
 
-    // auction case
-    uint32 auc_count = 0;
-
-    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AUCTIONHOUSE_COUNT_ITEM);
-    stmt->setUInt32(0, item_id);
-    result = CharacterDatabase.Query(stmt);
-
-    if (result)
-        auc_count = (*result)[0].GetUInt64();
-
-    if (count > 0)
-    {
-        stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AUCTIONHOUSE_ITEM_BY_ENTRY);
-        stmt->setUInt32(0, item_id);
-        stmt->setUInt32(1, count);
-        result = CharacterDatabase.Query(stmt);
-    }
-    else
-        result = PreparedQueryResult(NULL);
-
-    if (result)
-    {
-        do
-        {
-            Field* fields = result->Fetch();
-            uint32 item_guid       = fields[0].GetUInt32();
-            uint32 owner           = fields[1].GetUInt32();
-            uint32 owner_acc       = fields[2].GetUInt32();
-            std::string owner_name = fields[3].GetString();
-
-            char const* item_pos = "[in auction]";
-
-            PSendSysMessage(LANG_ITEMLIST_AUCTION, item_guid, owner_name.c_str(), owner, owner_acc, item_pos);
-        }
-        while (result->NextRow());
-    }
-
     // guild bank case
     uint32 guild_count = 0;
 
@@ -590,14 +552,14 @@ bool ChatHandler::HandleListItemCommand(const char *args)
             count = 0;
     }
 
-    if (inv_count + mail_count + auc_count + guild_count == 0)
+    if (inv_count + mail_count + guild_count == 0)
     {
         SendSysMessage(LANG_COMMAND_NOITEMFOUND);
         SetSentErrorMessage(true);
         return false;
     }
 
-    PSendSysMessage(LANG_COMMAND_LISTITEMMESSAGE, item_id, inv_count + mail_count + auc_count + guild_count, inv_count, mail_count, auc_count, guild_count);
+    PSendSysMessage(LANG_COMMAND_LISTITEMMESSAGE, item_id, inv_count + mail_count + guild_count, inv_count, mail_count, guild_count);
     return true;
 }
 
@@ -4239,198 +4201,6 @@ bool ChatHandler::HandleServerSetClosedCommand(const char *args)
     SendSysMessage(LANG_USE_BOL);
     SetSentErrorMessage(true);
     return false;
-}
-
-//Send items by mail
-bool ChatHandler::HandleSendItemsCommand(const char *args)
-{
-    // format: name "subject text" "mail text" item1[:count1] item2[:count2] ... item12[:count12]
-    Player* receiver;
-    uint64 receiver_guid;
-    std::string receiver_name;
-    if (!extractPlayerTarget((char*)args, &receiver, &receiver_guid, &receiver_name))
-        return false;
-
-    char* tail1 = strtok(NULL, "");
-    if (!tail1)
-        return false;
-
-    char* msgSubject = extractQuotedArg(tail1);
-    if (!msgSubject)
-        return false;
-
-    char* tail2 = strtok(NULL, "");
-    if (!tail2)
-        return false;
-
-    char* msgText = extractQuotedArg(tail2);
-    if (!msgText)
-        return false;
-
-    // msgSubject, msgText isn't NUL after prev. check
-    std::string subject = msgSubject;
-    std::string text    = msgText;
-
-    // extract items
-    typedef std::pair<uint32, uint32> ItemPair;
-    typedef std::list< ItemPair > ItemPairs;
-    ItemPairs items;
-
-    // get all tail string
-    char* tail = strtok(NULL, "");
-
-    // get from tail next item str
-    while (char* itemStr = strtok(tail, " "))
-    {
-        // and get new tail
-        tail = strtok(NULL, "");
-
-        // parse item str
-        char* itemIdStr = strtok(itemStr, ":");
-        char* itemCountStr = strtok(NULL, " ");
-
-        uint32 item_id = atoi(itemIdStr);
-        if (!item_id)
-            return false;
-
-        ItemTemplate const* item_proto = sObjectMgr->GetItemTemplate(item_id);
-        if (!item_proto)
-        {
-            PSendSysMessage(LANG_COMMAND_ITEMIDINVALID, item_id);
-            SetSentErrorMessage(true);
-            return false;
-        }
-
-        uint32 item_count = itemCountStr ? atoi(itemCountStr) : 1;
-        if (item_count < 1 || (item_proto->MaxCount > 0 && item_count > uint32(item_proto->MaxCount)))
-        {
-            PSendSysMessage(LANG_COMMAND_INVALID_ITEM_COUNT, item_count, item_id);
-            SetSentErrorMessage(true);
-            return false;
-        }
-
-        while (item_count > item_proto->GetMaxStackSize())
-        {
-            items.push_back(ItemPair(item_id, item_proto->GetMaxStackSize()));
-            item_count -= item_proto->GetMaxStackSize();
-        }
-
-        items.push_back(ItemPair(item_id, item_count));
-
-        if (items.size() > MAX_MAIL_ITEMS)
-        {
-            PSendSysMessage(LANG_COMMAND_MAIL_ITEMS_LIMIT, MAX_MAIL_ITEMS);
-            SetSentErrorMessage(true);
-            return false;
-        }
-    }
-
-    // from console show not existed sender
-    MailSender sender(MAIL_NORMAL, m_session ? m_session->GetPlayer()->GetGUIDLow() : 0, MAIL_STATIONERY_GM);
-
-    // fill mail
-    MailDraft draft(subject, text);
-
-    SQLTransaction trans = CharacterDatabase.BeginTransaction();
-
-    for (ItemPairs::const_iterator itr = items.begin(); itr != items.end(); ++itr)
-    {
-        if (Item* item = Item::CreateItem(itr->first, itr->second, m_session ? m_session->GetPlayer() : 0))
-        {
-            item->SaveToDB(trans);                               // save for prevent lost at next mail load, if send fail then item will deleted
-            draft.AddItem(item);
-        }
-    }
-
-    draft.SendMailTo(trans, MailReceiver(receiver, GUID_LOPART(receiver_guid)), sender);
-    CharacterDatabase.CommitTransaction(trans);
-
-    std::string nameLink = playerLink(receiver_name);
-    PSendSysMessage(LANG_MAIL_SENT, nameLink.c_str());
-    return true;
-}
-
-///Send money by mail
-bool ChatHandler::HandleSendMoneyCommand(const char *args)
-{
-    /// format: name "subject text" "mail text" money
-
-    Player* receiver;
-    uint64 receiver_guid;
-    std::string receiver_name;
-    if (!extractPlayerTarget((char*)args, &receiver, &receiver_guid, &receiver_name))
-        return false;
-
-    char* tail1 = strtok(NULL, "");
-    if (!tail1)
-        return false;
-
-    char* msgSubject = extractQuotedArg(tail1);
-    if (!msgSubject)
-        return false;
-
-    char* tail2 = strtok(NULL, "");
-    if (!tail2)
-        return false;
-
-    char* msgText = extractQuotedArg(tail2);
-    if (!msgText)
-        return false;
-
-    char* money_str = strtok(NULL, "");
-    int32 money = money_str ? atoi(money_str) : 0;
-    if (money <= 0)
-        return false;
-
-    // msgSubject, msgText isn't NUL after prev. check
-    std::string subject = msgSubject;
-    std::string text    = msgText;
-
-    // from console show not existed sender
-    MailSender sender(MAIL_NORMAL, m_session ? m_session->GetPlayer()->GetGUIDLow() : 0, MAIL_STATIONERY_GM);
-
-    SQLTransaction trans = CharacterDatabase.BeginTransaction();
-
-    MailDraft(subject, text)
-        .AddMoney(money)
-        .SendMailTo(trans, MailReceiver(receiver, GUID_LOPART(receiver_guid)), sender);
-
-    CharacterDatabase.CommitTransaction(trans);
-
-    std::string nameLink = playerLink(receiver_name);
-    PSendSysMessage(LANG_MAIL_SENT, nameLink.c_str());
-    return true;
-}
-
-/// Send a message to a player in game
-bool ChatHandler::HandleSendMessageCommand(const char *args)
-{
-    ///- Find the player
-    Player* rPlayer;
-    if (!extractPlayerTarget((char*)args, &rPlayer))
-        return false;
-
-    char* msg_str = strtok(NULL, "");
-    if (!msg_str)
-        return false;
-
-    ///- Check that he is not logging out.
-    if (rPlayer->GetSession()->isLogingOut())
-    {
-        SendSysMessage(LANG_PLAYER_NOT_FOUND);
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    ///- Send the message
-    //Use SendAreaTriggerMessage for fastest delivery.
-    rPlayer->GetSession()->SendAreaTriggerMessage("%s", msg_str);
-    rPlayer->GetSession()->SendAreaTriggerMessage("|cffff0000[Message from administrator]:|r");
-
-    //Confirmation message
-    std::string nameLink = GetNameLink(rPlayer);
-    PSendSysMessage(LANG_SENDMESSAGE, nameLink.c_str(), msg_str);
-    return true;
 }
 
 bool ChatHandler::HandleFlushArenaPointsCommand(const char * /*args*/)

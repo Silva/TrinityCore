@@ -584,24 +584,6 @@ DumpReturn PlayerDumpReader::LoadDump(const std::string& file, uint32 account, s
                     ROLLBACK(DUMP_FILE_BROKEN);             // character_inventory.item update
                 break;
             }
-            case DTT_MAIL:                                  // mail
-            {
-                if (!changeGuid(line, 1, mails, sObjectMgr->_mailId))
-                    ROLLBACK(DUMP_FILE_BROKEN);             // mail.id update
-                if (!changenth(line, 6, newguid))           // mail.receiver update
-                    ROLLBACK(DUMP_FILE_BROKEN);
-                break;
-            }
-            case DTT_MAIL_ITEM:                             // mail_items
-            {
-                if (!changeGuid(line, 1, mails, sObjectMgr->_mailId))
-                    ROLLBACK(DUMP_FILE_BROKEN);             // mail_items.id
-                if (!changeGuid(line, 2, items, sObjectMgr->_hiItemGuid))
-                    ROLLBACK(DUMP_FILE_BROKEN);             // mail_items.item_guid
-                if (!changenth(line, 3, newguid))           // mail_items.receiver
-                    ROLLBACK(DUMP_FILE_BROKEN);
-                break;
-            }
             case DTT_ITEM:
             {
                 // item, owner, data field:item, owner guid
@@ -677,7 +659,6 @@ DumpReturn PlayerDumpReader::LoadDump(const std::string& file, uint32 account, s
     sWorld->AddCharacterNameData(guid, name, gender, race, playerClass);
 
     sObjectMgr->_hiItemGuid += items.size();
-    sObjectMgr->_mailId     += mails.size();
 
     if (incHighest)
         ++sObjectMgr->_hiCharGuid;

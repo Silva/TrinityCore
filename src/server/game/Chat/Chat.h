@@ -219,11 +219,6 @@ class ChatHandler
         bool HandleResetStatsCommand(const char * args);
         bool HandleResetTalentsCommand(const char* args);
 
-        bool HandleSendItemsCommand(const char* args);
-        bool HandleSendMailCommand(const char* args);
-        bool HandleSendMessageCommand(const char * args);
-        bool HandleSendMoneyCommand(const char* args);
-
         bool HandleServerCorpsesCommand(const char* args);
         bool HandleServerExitCommand(const char* args);
         bool HandleServerIdleRestartCommand(const char* args);
@@ -303,26 +298,6 @@ class ChatHandler
         bool HandleBankCommand(const char* args);
         bool HandleChangeWeather(const char* args);
         bool HandleKickPlayerCommand(const char * args);
-
-        // GM ticket command handlers
-        bool HandleGMTicketListCommand(const char* args);
-        bool HandleGMTicketListOnlineCommand(const char* args);
-        bool HandleGMTicketListClosedCommand(const char* args);
-        bool HandleGMTicketListEscalatedCommand(const char* args);
-        bool HandleGMTicketGetByIdCommand(const char* args);
-        bool HandleGMTicketGetByNameCommand(const char* args);
-        bool HandleGMTicketCloseByIdCommand(const char* args);
-        bool HandleGMTicketAssignToCommand(const char* args);
-        bool HandleGMTicketUnAssignCommand(const char* args);
-        bool HandleGMTicketCommentCommand(const char* args);
-        bool HandleGMTicketDeleteByIdCommand(const char* args);
-        bool HandleGMTicketResetCommand(const char* /* args */);
-        bool HandleGMTicketReloadCommand(const char*);
-        bool HandleToggleGMTicketSystem(const char* args);
-        bool HandleGMTicketEscalateCommand(const char* args);
-        bool HandleGMTicketCompleteCommand(const char* args);
-        bool HandleGMTicketResponseAppendCommand(const char* args);
-        bool HandleGMTicketResponseAppendLnCommand(const char* args);
 
         bool HandleMaxSkillCommand(const char* args);
         bool HandleSetSkillCommand(const char* args);

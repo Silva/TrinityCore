@@ -2085,21 +2085,6 @@ void AchievementMgr::CompletedAchievement(AchievementEntry const* achievement)
                 ObjectMgr::GetLocaleString(loc->text, loc_idx, text);
             }
         }
-
-        MailDraft draft(subject, text);
-
-        SQLTransaction trans = CharacterDatabase.BeginTransaction();
-        if (item)
-        {
-            // save new item before send
-            item->SaveToDB(trans);                               // save for prevent lost at next mail load, if send fail then item will deleted
-
-            // item
-            draft.AddItem(item);
-        }
-
-        draft.SendMailTo(trans, GetPlayer(), MailSender(MAIL_CREATURE, reward->sender));
-        CharacterDatabase.CommitTransaction(trans);
     }
 }
 

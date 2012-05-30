@@ -25,7 +25,6 @@ EndScriptData */
 #include "ScriptMgr.h"
 #include "ObjectMgr.h"
 #include "MapManager.h"
-#include "TicketMgr.h"
 #include "Chat.h"
 
 class go_commandscript : public CommandScript
@@ -45,7 +44,6 @@ public:
             { "trigger",        SEC_MODERATOR,      false, &HandleGoTriggerCommand,           "", NULL },
             { "zonexy",         SEC_MODERATOR,      false, &HandleGoZoneXYCommand,            "", NULL },
             { "xyz",            SEC_MODERATOR,      false, &HandleGoXYZCommand,               "", NULL },
-            { "ticket",         SEC_MODERATOR,      false, &HandleGoTicketCommand,            "", NULL },
             { "",               SEC_MODERATOR,      false, &HandleGoXYZCommand,               "", NULL },
             { NULL,             0,                  false, NULL,                              "", NULL }
         };
@@ -530,39 +528,6 @@ public:
             player->SaveRecallPosition();
 
         player->TeleportTo(mapId, x, y, z, ort);
-        return true;
-    }
-
-    static bool HandleGoTicketCommand(ChatHandler* handler, char const* args)
-    {
-        if (!*args)
-            return false;
-
-        char* id = strtok((char*)args, " ");
-        if (!id)
-            return false;
-
-        uint32 ticketId = atoi(id);
-        if (!ticketId)
-            return false;
-
-        GmTicket* ticket = sTicketMgr->GetTicket(ticketId);
-        if (!ticket)
-        {
-            handler->SendSysMessage(LANG_COMMAND_TICKETNOTEXIST);
-            return true;
-        }
-
-        Player* player = handler->GetSession()->GetPlayer();
-        if (player->isInFlight())
-        {
-            player->GetMotionMaster()->MovementExpired();
-            player->CleanupAfterTaxiFlight();
-        }
-        else
-            player->SaveRecallPosition();
-
-        ticket->TeleportTo(player);
         return true;
     }
 };
