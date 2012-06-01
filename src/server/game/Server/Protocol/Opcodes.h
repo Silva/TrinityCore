@@ -1366,6 +1366,13 @@ enum PacketProcessing
     PROCESS_THREADSAFE                                      //packet is thread-safe - process it in Map::Update()
 };
 
+enum IRPacketProcessing
+{
+	PROCESS_LOCAL = 0,
+	PROCESS_FORWARD_IF_NEED = 1,
+	PROCESS_ALWAYS_FORWARD = 2
+};
+
 class WorldPacket;
 
 struct OpcodeHandler
@@ -1374,6 +1381,7 @@ struct OpcodeHandler
     SessionStatus status;
     PacketProcessing packetProcessing;
     void (WorldSession::*handler)(WorldPacket& recvPacket);
+    IRPacketProcessing irPacketProcessing;
 };
 
 extern OpcodeHandler opcodeTable[NUM_MSG_TYPES];

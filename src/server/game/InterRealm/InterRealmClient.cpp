@@ -404,8 +404,16 @@ void InterRealmClient::Handle_Null(WorldPacket& recvPacket)
 
 void InterRealmClient::SendTunneledPacket(uint64 playerGuid, WorldPacket const* packet)
 {
-	if(playerGuid == 0)
+	if(playerGuid == 0 || packet->GetOpcode() > NUM_MSG_TYPES)
 		return;
+
+	// If it's a local packet, or don't need to forward it (matching conditions), don't forwar
+	if(opcodeTable[packet->GetOpcode()].irPacketProcessing == PROCESS_LOCAL /*|| 
+	(opcodeTable[packet->GetOpcode()].irPacketProcessing == PROCESS_FORWARD_IF_NEED && cond)*/)
+	{
+		sLog->outError("Drop Packet opcode %x (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
+		return;
+	}
 	
 	WorldPacket tmpPacket(IR_SMSG_TUNNEL_PACKET,8+2+packet->size());
 	tmpPacket << (uint64)playerGuid;

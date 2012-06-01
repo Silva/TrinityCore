@@ -18,6 +18,7 @@
 
 #include "InterRealmSocketHandler.h"
 #include "InterRealmMgr.h"
+#include "BattlegroundMgr.h"
 #include "World.h"
 
 InterRealmSocket::InterRealmSocket()
@@ -64,6 +65,7 @@ void InterRealmSocket::run()
 		return;
 	}
 	
+	sBattlegroundMgr->ToggleTesting();
 	sLog->outString("InterRealm is now Listening on port %d", INTERREALM_PORT);
 	
 	while(!World::IsStopped()) {
