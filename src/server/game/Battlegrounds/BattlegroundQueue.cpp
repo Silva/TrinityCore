@@ -446,7 +446,7 @@ bool BattlegroundQueue::InviteGroupToBG(GroupQueueInfo* ginfo, Battleground* bg,
             // if offline, skip him, this should not happen - player is removed from queue when he logs out
             if (!player)
                 continue;
-
+                
             // invite the player
             PlayerInvitedToBGUpdateAverageWaitTime(ginfo, bracket_id);
             //sBattlegroundMgr->InvitePlayer(player, bg, ginfo->Team);
@@ -837,10 +837,8 @@ void BattlegroundQueue::BattlegroundQueueUpdate(uint32 /*diff*/, BattlegroundTyp
             //create new battleground
             Battleground* bg2 = sBattlegroundMgr->CreateNewBattleground(bgTypeId, bracketEntry, 0, false);
             if (!bg2)
-            {
-                sLog->outError("BattlegroundQueue::Update - Cannot create battleground: %u", bgTypeId);
                 return;
-            }
+
             //invite those selection pools
             for (uint32 i = 0; i < BG_TEAMS_COUNT; i++)
                 for (GroupsQueueType::const_iterator citr = m_SelectionPools[BG_TEAM_ALLIANCE + i].SelectedGroups.begin(); citr != m_SelectionPools[BG_TEAM_ALLIANCE + i].SelectedGroups.end(); ++citr)

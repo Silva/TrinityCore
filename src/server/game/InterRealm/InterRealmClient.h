@@ -48,6 +48,7 @@ class InterRealmClient: public ACE_Based::Runnable
 		 */
 		 // IR Player handling
 		 void Handle_RegisterPlayer(WorldPacket& recvPacket);
+		 void Handle_LogoutPlayer(WorldPacket& recvPacket);
 		 
 		 // IR Negociation
 		 void Handle_Hello(WorldPacket& recvPacket);
@@ -63,7 +64,7 @@ class InterRealmClient: public ACE_Based::Runnable
 		 void SendPacket(WorldPacket const* packet);
 		 void SendTunneledPacket(uint64 playerGuid, WorldPacket const* packet);
 		 // WorldSessions
-		 void RemovePlayerSession(uint64 guid);
+		 bool RemovePlayerSession(uint64 guid);
 	private:
 		void handlePacket(const char* buffer, int byteRecv);
 		void RegisterPlayerSession(uint64 guid, WorldSession* sess);

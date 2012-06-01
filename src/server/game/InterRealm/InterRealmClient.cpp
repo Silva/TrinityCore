@@ -52,14 +52,28 @@ void InterRealmClient::run()
 	sIRMgr->RemoveClient(m_realmId);
 }
 
+void InterRealmClient::Handle_LogoutPlayer(WorldPacket& recvPacket)
+{
+	uint64 playerGuid;
+	recvPacket >> playerGuid;
+	
+	WorldPacket pck(IR_SMSG_WHOIAM_ACK,1);
+	if(RemovePlayerSession(playerGuid))
+		pck << (uint8)1;
+	else
+		pck << (uint8)0;
+	
+	SendPacket(&pck);
+}
+
 void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 {
-	uint32 guidlow, accountid, xp, money, bytes1, bytes2, flags, instanceId;
+	uint64 playerGuid, accountid, xp, money, bytes1, bytes2, flags, instanceId;
 	uint16 mapId;
 	uint8 race,_class,gender,level;
 	float posX, posY, posZ, posO;
 	std::string _name;
-	recvPacket >> guidlow;
+	recvPacket >> playerGuid;
 	recvPacket >> accountid;
 	recvPacket >> _name;
 	recvPacket >> race;
@@ -91,10 +105,10 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 	{
 		_sess = new WorldSession(0,this,SEC_PLAYER,2,0,LocaleConstant(0),0,false);
 		_player = new Player(_sess);
-		((Object*)_player)->_Create(guidlow, 0, HIGHGUID_PLAYER);
-		_player->SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(guidlow, 0, HIGHGUID_PLAYER));
+		((Object*)_player)->_Create(playerGuid, 0, HIGHGUID_PLAYER);
+		_player->SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(playerGuid, 0, HIGHGUID_PLAYER));
 		_sess->SetPlayer(_player);
-		_player->SetRealGUID(guidlow);
+		_player->SetRealGUID(playerGuid);
 	}
 	else
 	{
@@ -104,7 +118,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 			return;
 	}
 	
-	_player->SetUInt64Value(0,guidlow);
+	_player->SetUInt64Value(0,playerGuid);
 	//_player->Setaccount ??
 	_player->SetName(_name);
 	_player->SetByteValue(UNIT_FIELD_BYTES_0, 0,race);
@@ -166,6 +180,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 		_player->SetMap(map);
 		map->AddPlayerToMap(_player);
 		_player->TeleportTo(mapId, posX, posY, posZ, posO);
+		sObjectAccessor->AddObject(_player);
 	}
 	
 	for (uint32 i = 0; i < MAX_POWERS; ++i)
@@ -502,8 +517,13 @@ void InterRealmClient::RegisterPlayerSession(uint64 guid, WorldSession* sess)
 	}
 }
 
-void InterRealmClient::RemovePlayerSession(uint64 guid)
+bool InterRealmClient::RemovePlayerSession(uint64 guid)
 {
-	if(m_sessions.find(guid) != m_sessions.end())
-		m_sessions.erase(guid);
+	IRPlayerSessions::iterator itr = m_sessions.find(guid);
+	if(itr == m_sessions.end())
+		return false;
+		
+	itr->second->LogoutPlayer(false);
+	m_sessions.erase(guid);
+	return true;
 }

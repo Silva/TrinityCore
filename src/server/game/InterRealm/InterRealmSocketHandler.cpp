@@ -66,6 +66,8 @@ void InterRealmSocket::run()
 	}
 	
 	sBattlegroundMgr->ToggleTesting();
+	if(sBattlegroundMgr->isTesting())
+		sLog->outString("InterRealm in testing mode !");
 	sLog->outString("InterRealm is now Listening on port %d", INTERREALM_PORT);
 	
 	while(!World::IsStopped()) {
