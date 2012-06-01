@@ -39,6 +39,8 @@ class InterRealmTunnel: public ACE_Based::Runnable
 		// Thread
 		void run();
 		
+		bool isTunnelOpened() { return (m_force_stop == false && m_sock != INVALID_SOCKET); }
+		
 		/*
 		 *  Handlers
 		 */
@@ -62,5 +64,7 @@ class InterRealmTunnel: public ACE_Based::Runnable
 		bool m_force_stop;
 		uint8 m_rand;
 };
+
+#define sIRTunnel ACE_Singleton<InterRealmMgr, ACE_Null_Mutex>::instance()
 
 #endif

@@ -472,6 +472,11 @@ void WorldSession::LogoutPlayer(bool Save)
         if (Battleground* bg = _player->GetBattleground())
             bg->EventPlayerLoggedOut(_player);
 
+		// Declare Player Logout to InterRealm
+		WorldPacket tunPacket(IR_CMSG_PLAYER_LOGOUT,8);
+		tunPacket << _player->GetGUID();
+		sIRTunnel->SendPacket(&tunPacket);
+		
         ///- Teleport to home if the player is in an invalid instance
         if (!_player->m_InstanceValid && !_player->isGameMaster())
             _player->TeleportTo(_player->m_homebindMapId, _player->m_homebindX, _player->m_homebindY, _player->m_homebindZ, _player->GetOrientation());

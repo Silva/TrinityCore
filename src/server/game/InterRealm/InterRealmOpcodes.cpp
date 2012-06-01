@@ -27,6 +27,8 @@ IROpcodeHandler IRopcodeTable[IR_NUM_MSG_TYPES] = {
 	{"IR_SMSG_WHOIAM_ACK",				&InterRealmTunnel::Handle_WhoIam			},
 	{"IR_CMSG_REGISTER_PLAYER",			&InterRealmTunnel::Handle_ClientSide		},
 	{"IR_SMSG_REGISTER_PLAYER_RESP",	&InterRealmTunnel::Handle_Null				},
+	{"IR_CMSG_PLAYER_LOGOUT",			&InterRealmTunnel::Handle_ClientSide		},
+	{"IR_SMSG_PLAYER_LOGOUT_RESP",		&InterRealmTunnel::Handle_Null				},
 };
 
 

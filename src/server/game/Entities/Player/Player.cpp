@@ -18987,7 +18987,7 @@ void Player::SendDatasToInterRealm()
 	WorldPacket pdump(IR_CMSG_REGISTER_PLAYER,
 	4+4+(strlen(GetName())+1)+1+1+1+1+4+4+4+4+4+2+4+4+4+4+4
 	);
-	pdump << uint32(GetGUIDLow());
+	pdump << uint64(GetGUID());
 	//pdump << uint32(GetSession()->GetAccountId());
 	pdump << GetName();
 	pdump << uint8(getRace());
