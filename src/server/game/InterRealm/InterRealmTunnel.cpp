@@ -19,6 +19,7 @@
 #include "InterRealmTunnel.h"
 #include "InterRealm_defs.h"
 #include "InterRealmOpcodes.h"
+#include "SocialMgr.h"
 #include "World.h"
 
 InterRealmTunnel::InterRealmTunnel(): m_rand(0), m_tunnel_open(false)
@@ -70,15 +71,18 @@ void InterRealmTunnel::run()
 		while(!World::IsStopped() && m_sock != INVALID_SOCKET && m_force_stop == false) {
 			char buffer[10240];
 			bzero(buffer,10240);
-			int byteRecv = recv(m_sock, buffer, 10240, 0);
-			if(byteRecv != SOCKET_ERROR) {
-				if(byteRecv != 0) {
-					if(byteRecv > 0) {
+			int byteRecv = read(m_sock, buffer, 10240);
+			if(byteRecv != SOCKET_ERROR) 
+			{
+				if(byteRecv != 0) 
+				{
+					if(byteRecv > 0) 
+					{
 						// Create packet
 						WorldPacket* packet = new WorldPacket(buffer[0]+buffer[1]*256);
 						for(int i=2;i<byteRecv;i++)
 							*packet << (uint8)buffer[i];
-							
+						
 						// Handle Packet
 						if(packet->GetOpcode() < IR_NUM_MSG_TYPES)
 						{
@@ -106,6 +110,8 @@ void InterRealmTunnel::run()
 							delete packet;
 					}
 				}
+				else
+					m_force_stop = true;
 			}
 			else
 				m_force_stop = true;
@@ -138,12 +144,48 @@ void InterRealmTunnel::Handle_TunneledPacket(WorldPacket& recvPacket)
 		*tunPacket << uint8(rawData);
 	}
 	
-	sLog->outError("Tunneled Packet received (opcode %x)",opcodeId);
+	sLog->outError("Tunneled Packet received (opcode %x: %s)",opcodeId,opcodeTable[opcodeId].name);
 	
 	PlayerMap players = sWorld->GetAllPlayers();
 	PlayerMap::iterator itr = players.find(playerGuid);
 	if(itr != players.end())
 		itr->second->GetSession()->SendPacket(tunPacket);
+}
+
+void InterRealmTunnel::Handle_SendSocialList(WorldPacket& packet)
+{
+	uint64 playerGuid;
+	packet >> playerGuid;
+	PlayerMap players = sWorld->GetAllPlayers();
+	PlayerMap::iterator itr = players.find(playerGuid);
+	if(itr != players.end())
+		itr->second->GetSocial()->SendSocialList(itr->second);
+}
+
+void InterRealmTunnel::Handle_PlayerEnterBG(WorldPacket& packet)
+{
+	uint64 playerGuid;
+	packet >> playerGuid;
+	PlayerMap players = sWorld->GetAllPlayers();
+	PlayerMap::iterator itr = players.find(playerGuid);
+	if(itr != players.end())
+	{
+		sLog->outError("Player enter BG %u",playerGuid);
+		itr->second->GetSession()->setInInterRealmBG(true);
+	}
+}
+	
+void InterRealmTunnel::Handle_PlayerLeaveBG(WorldPacket& packet)
+{
+	uint64 playerGuid;
+	packet >> playerGuid;
+	PlayerMap players = sWorld->GetAllPlayers();
+	PlayerMap::iterator itr = players.find(playerGuid);
+	if(itr != players.end())
+	{
+		sLog->outError("Player leave BG %u",playerGuid);
+		itr->second->GetSession()->setInInterRealmBG(false);
+	}
 }
 
 void InterRealmTunnel::Handle_WhoIam(WorldPacket& packet)

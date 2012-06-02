@@ -29,6 +29,9 @@ IROpcodeHandler IRopcodeTable[IR_NUM_MSG_TYPES] = {
 	{"IR_SMSG_REGISTER_PLAYER_RESP",	&InterRealmTunnel::Handle_Null				},
 	{"IR_CMSG_PLAYER_LOGOUT",			&InterRealmTunnel::Handle_ClientSide		},
 	{"IR_SMSG_PLAYER_LOGOUT_RESP",		&InterRealmTunnel::Handle_Null				},
+	{"IR_SMSG_PLAYER_ENTER_BG",			&InterRealmTunnel::Handle_PlayerEnterBG		},
+	{"IR_SMSG_PLAYER_LEAVE_BG",			&InterRealmTunnel::Handle_PlayerLeaveBG		},
+	{"IR_SMSG_SEND_SOCIAL_LIST",		&InterRealmTunnel::Handle_SendSocialList	},
 };
 
 

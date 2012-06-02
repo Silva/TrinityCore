@@ -46,8 +46,14 @@ class InterRealmTunnel: public ACE_Based::Runnable
 		 */
 		 void Handle_TunneledPacket(WorldPacket& recvPacket);
 		 
+		 // Server Registration
 		 void Handle_Hello(WorldPacket& packet);
 		 void Handle_WhoIam(WorldPacket& packet);
+		 
+		 // Player handling
+		 void Handle_PlayerEnterBG(WorldPacket& packet);
+		 void Handle_PlayerLeaveBG(WorldPacket& packet);
+		 void Handle_SendSocialList(WorldPacket& packet);
 		 
 		 void Handle_Unhandled(WorldPacket& recvPacket);
 		 void Handle_Null(WorldPacket& recvPacket);
@@ -65,6 +71,6 @@ class InterRealmTunnel: public ACE_Based::Runnable
 		uint8 m_rand;
 };
 
-#define sIRTunnel ACE_Singleton<InterRealmMgr, ACE_Null_Mutex>::instance()
+#define sIRTunnel ACE_Singleton<InterRealmTunnel, ACE_Null_Mutex>::instance()
 
 #endif

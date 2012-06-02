@@ -18985,11 +18985,13 @@ void Player::SendDatasToInterRealm()
 {
 	
 	WorldPacket pdump(IR_CMSG_REGISTER_PLAYER,
-	4+4+(strlen(GetName())+1)+1+1+1+1+4+4+4+4+4+2+4+4+4+4+4
+	8+4+(strlen(GetName())+1)+1+1+1+1+4+4+4+4+4+2+4+4+4+4+4
+	+4+4+4+4+4+4+4+4+4+4+2+2+4+8+4+4+4+4*MAX_POWERS+1+1
+	+4*(EQUIPMENT_SLOT_END*2)
 	);
 	pdump << uint64(GetGUID());
 	//pdump << uint32(GetSession()->GetAccountId());
-	pdump << GetName();
+	pdump << std::string(GetName());
 	pdump << uint8(getRace());
 	pdump << uint8(getClass());
 	pdump << uint8(getGender());

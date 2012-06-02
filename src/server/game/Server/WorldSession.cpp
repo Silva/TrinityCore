@@ -44,6 +44,8 @@
 #include "Transport.h"
 #include "WardenWin.h"
 #include "WardenMac.h"
+#include "InterRealm/InterRealmTunnel.h"
+#include "InterRealm/InterRealmOpcodes.h"
 
 bool MapSessionFilter::Process(WorldPacket* packet)
 {
@@ -92,7 +94,7 @@ WorldSession::WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, uint8
 m_muteTime(mute_time), m_timeOutTime(0), _player(NULL), m_Socket(sock),
 _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
 m_inQueue(false), m_playerLoading(false), m_playerLogout(false),
-m_playerRecentlyLogout(false), m_playerSave(false),
+m_playerRecentlyLogout(false), m_playerSave(false), m_isinIRBG(false),
 m_sessionDbcLocale(sWorld->GetAvailableDbcLocale(locale)),
 m_sessionDbLocaleIndex(locale),
 m_latency(0), m_TutorialsChanged(false), recruiterId(recruiter),
@@ -195,6 +197,7 @@ void WorldSession::SendPacket(WorldPacket const* packet)
     }
 #endif                                                      // !TRINITY_DEBUG
 
+	//sLog->outError("Send packet %u to client (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
     if (m_Socket->SendPacket(*packet) == -1)
         m_Socket->CloseSocket();
 }
@@ -256,6 +259,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
         else
         {
             OpcodeHandler &opHandle = opcodeTable[packet->GetOpcode()];
+            sLog->outError("Receive client packet %x (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
             try
             {
                 switch (opHandle.status)
@@ -284,13 +288,18 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                         else if (_player->IsInWorld())
                         {
                             sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
-                            if(opHandle.forwardToIR == PROCESS_ALWAYS_DISTANT)
+                            if(opHandle.forwardToIR == PROCESS_ALWAYS_DISTANT || 
+                            (m_isinIRBG && (opHandle.forwardToIR == PROCESS_DISTANT_IF_NEED || opHandle.forwardToIR == PROCESS_COPY_DISTANT)))
                             {
 								_player->SendDatasToInterRealm();
 								sWorld->GetInterRealmTunnel()->SendTunneledPacket(_player->GetGUID(),packet);
 							}
 							else
+							{
+								if(m_isinIRBG)
+									sLog->outError("Packet received when in IRBG: %x (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
 								(this->*opHandle.handler)(*packet);
+							}
                             if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
                                 LogUnprocessedTail(packet);
                         }
@@ -312,15 +321,29 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                     case STATUS_TRANSFER:
                         if (!_player)
                             LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player has not logged in yet");
-                        else if (_player->IsInWorld())
-                            LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player is still in world");
-                        else
+                        else 
                         {
-                            sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
-                            (this->*opHandle.handler)(*packet);
-                            if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
-                                LogUnprocessedTail(packet);
-                        }
+							if(opHandle.forwardToIR == PROCESS_ALWAYS_DISTANT || 
+                            (m_isinIRBG && (opHandle.forwardToIR == PROCESS_DISTANT_IF_NEED || opHandle.forwardToIR == PROCESS_COPY_DISTANT)))
+                            {
+								_player->SendDatasToInterRealm();
+								sWorld->GetInterRealmTunnel()->SendTunneledPacket(_player->GetGUID(),packet);
+							}
+							else
+							{
+								if (_player->IsInWorld())
+									LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player is still in world");
+								else
+								{
+									sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+									if(m_isinIRBG)
+										sLog->outError("Packet received when in IRBG: %x (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
+									(this->*opHandle.handler)(*packet);
+								}
+								if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
+									LogUnprocessedTail(packet);
+							}
+						}
                         break;
                     case STATUS_AUTHED:
                         // prevent cheating with skip queue wait
@@ -336,7 +359,18 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                             m_playerRecentlyLogout = false;
 
                         sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
-                        (this->*opHandle.handler)(*packet);
+                        if(opHandle.forwardToIR == PROCESS_ALWAYS_DISTANT || 
+						(m_isinIRBG && (opHandle.forwardToIR == PROCESS_DISTANT_IF_NEED || opHandle.forwardToIR == PROCESS_COPY_DISTANT)))
+						{
+							_player->SendDatasToInterRealm();
+							sWorld->GetInterRealmTunnel()->SendTunneledPacket(_player->GetGUID(),packet);
+						}
+						else
+						{
+							if(m_isinIRBG)
+								sLog->outError("Packet received when in IRBG: %x (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
+							(this->*opHandle.handler)(*packet);
+						}
                         if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
                             LogUnprocessedTail(packet);
                         break;
@@ -413,6 +447,14 @@ void WorldSession::LogoutPlayer(bool Save)
     {
         if (uint64 lguid = _player->GetLootGUID())
             DoLootRelease(lguid);
+            
+        if(m_isinIRBG)
+        {
+			WorldPacket tunPacket(IR_CMSG_PLAYER_LOGOUT,8);
+			tunPacket << (uint64)_player->GetGUID();
+			sIRTunnel->SendPacket(&tunPacket);
+			m_isinIRBG = false;
+		}
 
         ///- If the player just died before logging out, make him appear as a ghost
         //FIXME: logout must be delayed in case lost connection with client in time of combat

@@ -254,6 +254,9 @@ class WorldSession
         uint8 Expansion() const { return m_expansion; }
 
         void InitWarden(BigNumber* k, std::string os);
+        
+        bool isInInterRealmBG() { return m_isinIRBG; }
+        void setInInterRealmBG(bool inIRBG) { m_isinIRBG = inIRBG; }
 
         /// Session in auth.queue currently
         void SetInQueue(bool state) { m_inQueue = state; }
@@ -979,6 +982,8 @@ class WorldSession
         bool isRecruiter;
         ACE_Based::LockedQueue<WorldPacket*, ACE_Thread_Mutex> _recvQueue;
         time_t timeLastWhoCommand;
+        
+        bool m_isinIRBG;
 };
 #endif
 /// @}
