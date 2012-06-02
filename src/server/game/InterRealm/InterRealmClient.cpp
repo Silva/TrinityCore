@@ -49,6 +49,10 @@ void InterRealmClient::run()
 	sLog->outDetail("Closing connection with %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
 	if(csock != INVALID_SOCKET)
 		close(csock);
+	IRPlayerSessions::iterator itr = m_sessions.begin();
+	for(;itr != m_sessions.end(); ++itr)
+		delete itr->second;
+	m_sessions.clear();
 	sIRMgr->RemoveClient(m_realmId);
 }
 
@@ -57,7 +61,7 @@ void InterRealmClient::Handle_LogoutPlayer(WorldPacket& recvPacket)
 	uint64 playerGuid;
 	recvPacket >> playerGuid;
 	
-	WorldPacket pck(IR_SMSG_WHOIAM_ACK,1);
+	WorldPacket pck(IR_SMSG_PLAYER_LOGOUT_RESP,1);
 	if(RemovePlayerSession(playerGuid))
 		pck << (uint8)1;
 	else
@@ -68,7 +72,8 @@ void InterRealmClient::Handle_LogoutPlayer(WorldPacket& recvPacket)
 
 void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 {
-	uint64 playerGuid, accountid, xp, money, bytes1, bytes2, flags, instanceId;
+	uint64 playerGuid;
+	uint32 accountid, xp, money, bytes1, bytes2, flags, instanceId;
 	uint16 mapId;
 	uint8 race,_class,gender,level;
 	float posX, posY, posZ, posO;
@@ -100,7 +105,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 	if(!mapEntry)
 		return;
 		
-	IRPlayerSessions::iterator itr = m_sessions.find(guidlow);
+	IRPlayerSessions::iterator itr = m_sessions.find(playerGuid);
 	if(itr == m_sessions.end())
 	{
 		_sess = new WorldSession(0,this,SEC_PLAYER,2,0,LocaleConstant(0),0,false);
@@ -109,21 +114,22 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 		_player->SetUInt64Value(OBJECT_FIELD_GUID, MAKE_NEW_GUID(playerGuid, 0, HIGHGUID_PLAYER));
 		_sess->SetPlayer(_player);
 		_player->SetRealGUID(playerGuid);
+		_player->SetUInt64Value(0,playerGuid);
+		//_player->Setaccount ??
+		_player->SetName(_name);
+		_player->SetByteValue(UNIT_FIELD_BYTES_0, 0,race);
+		_player->SetByteValue(UNIT_FIELD_BYTES_0, 1,_class);
+		_player->SetByteValue(UNIT_FIELD_BYTES_0, 2,gender);
 	}
 	else
 	{
 		_sess = itr->second;
 		_player = _sess->GetPlayer();
-		if(!_sess->GetPlayer());
+		if(!_player);
 			return;
 	}
 	
-	_player->SetUInt64Value(0,playerGuid);
-	//_player->Setaccount ??
-	_player->SetName(_name);
-	_player->SetByteValue(UNIT_FIELD_BYTES_0, 0,race);
-	_player->SetByteValue(UNIT_FIELD_BYTES_0, 1,_class);
-	_player->SetByteValue(UNIT_FIELD_BYTES_0, 2,gender);
+	
 	_player->SetLevel(level);
 	_player->SetUInt32Value(PLAYER_XP,xp);
 	_player->SetMoney(money);
@@ -174,7 +180,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
 	_player->SetHealth(health);
 	
 	Map* map = sMapMgr->CreateMap(mapId, _player);
-	if(map)
+	if(itr == m_sessions.end() && map)
 	{
 		_player->GetMotionMaster()->InitDefault();
 		_player->SetMap(map);
@@ -302,8 +308,7 @@ void InterRealmClient::Handle_RegisterPlayer(WorldPacket& recvPacket)
     if(itr == m_sessions.end())
     {
 		sWorld->AddSession(_sess);
-		m_sessions[guidlow] = _sess;
-		
+		m_sessions[playerGuid] = _sess;
 	}
 }
 
@@ -398,8 +403,7 @@ void InterRealmClient::Handle_TunneledPacket(WorldPacket& recvPacket)
 	}
 	sLog->outDetail("Tunneled Packet received (opcode %x)",opcodeId);
 	
-	if(it->second)
-		it->second->QueuePacket(tunPacket);
+	ProcessWorldSessionPacket(it->second,tunPacket);
 }
 
 void InterRealmClient::printInfos()
@@ -421,15 +425,22 @@ void InterRealmClient::SendTunneledPacket(uint64 playerGuid, WorldPacket const* 
 {
 	if(playerGuid == 0 || packet->GetOpcode() > NUM_MSG_TYPES)
 		return;
-
-	// If it's a local packet, or don't need to forward it (matching conditions), don't forwar
-	if(opcodeTable[packet->GetOpcode()].irPacketProcessing == PROCESS_LOCAL /*|| 
-	(opcodeTable[packet->GetOpcode()].irPacketProcessing == PROCESS_FORWARD_IF_NEED && cond)*/)
+	
+	// If no session for this player
+	IRPlayerSessions::iterator it = m_sessions.find(playerGuid);
+	if(it == m_sessions.end())
+		return;
+	
+	WorldSession* _sess = it->second;
+	
+	// If it's a local packet, or don't need to forward it (matching conditions), don't forward
+	if(opcodeTable[packet->GetOpcode()].irPacketProcessing == PROCESS_LOCAL || 
+	(opcodeTable[packet->GetOpcode()].irPacketProcessing == PROCESS_FORWARD_IF_NEED && !_sess->isInInterRealmBG()))
 	{
 		sLog->outError("Drop Packet opcode %x (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
 		return;
 	}
-	
+
 	WorldPacket tmpPacket(IR_SMSG_TUNNEL_PACKET,8+2+packet->size());
 	tmpPacket << (uint64)playerGuid;
 	tmpPacket << (uint16)packet->GetOpcode();
@@ -437,6 +448,7 @@ void InterRealmClient::SendTunneledPacket(uint64 playerGuid, WorldPacket const* 
 	for(int i=0;i<packet->size();i++)
 		tmpPacket << (uint8)packet->contents()[i];
 	
+	sLog->outError("Send Tunneled Packet %x (%s)",packet->GetOpcode(),opcodeTable[packet->GetOpcode()].name);
 	SendPacket(&tmpPacket);
 }
 
@@ -448,7 +460,10 @@ void InterRealmClient::SendPacket(WorldPacket const* packet)
 	char* buffer = (char*)malloc((packet->size()+2)*sizeof(char));
 	bzero(buffer,packet->size()+2);
 	if(buffer == NULL)
+	{
+		sLog->outError("Failed to allocate memory for packet %x",packet->GetOpcode());
 		return;
+	}
 
 	uint8 u8low = packet->GetOpcode() & 0xFF;
 	uint8 u8high = (packet->GetOpcode() >> 8) & 0xFF;
@@ -459,14 +474,20 @@ void InterRealmClient::SendPacket(WorldPacket const* packet)
 	for(int i=0;i<packet->size();i++)
 		buffer[i+2] = packet->contents()[i];
 	
-	send(csock,buffer,packet->size()+2,0);
+	int err = write(csock,buffer,packet->size()+2);
+	if(err == SOCKET_ERROR || err == 0)
+		sLog->outError("Failed to send packet %x",packet->GetOpcode());
+
 	free(buffer);
 }
 
 void InterRealmClient::handlePacket(const char* buffer, int byteRecv)
 {
 	if(byteRecv == 0)
+	{
+		m_force_close = true;
 		return;
+	}
 		
 	if(byteRecv > 1) {
 		// Create packet
@@ -494,7 +515,7 @@ void InterRealmClient::handlePacket(const char* buffer, int byteRecv)
 			}				
 		}
 		else
-			this->Handle_Unhandled(*packet);
+			Handle_Unhandled(*packet);
 			
 		// Delete Packet from memory
 		if(packet != NULL)
@@ -502,6 +523,115 @@ void InterRealmClient::handlePacket(const char* buffer, int byteRecv)
 	}
 	else
 		sLog->outError("Invalid Packet with too short size recv from %s:%d (sock %d)",inet_ntoa(csin.sin_addr), htons(csin.sin_port),csock);
+}
+
+void InterRealmClient::ProcessWorldSessionPacket(WorldSession* _sess, WorldPacket* packet)
+{
+	Player* _player = _sess->GetPlayer();
+	
+	if (packet->GetOpcode() >= NUM_MSG_TYPES)
+	{
+		sLog->outError("SESSION: received non-existed opcode %s (0x%.4X)", LookupOpcodeName(packet->GetOpcode()), packet->GetOpcode());
+		//sScriptMgr->OnUnknownPacketReceive(m_Socket, WorldPacket(*packet));
+	}
+	else
+	{
+		OpcodeHandler &opHandle = opcodeTable[packet->GetOpcode()];
+		try
+		{
+			switch (opHandle.status)
+			{
+				case STATUS_LOGGEDIN:
+					if (!_player)
+					{
+						// skip STATUS_LOGGEDIN opcode unexpected errors if player logout sometime ago - this can be network lag delayed packets
+						//! If player didn't log out a while ago, it means packets are being sent while the server does not recognize
+						//! the client to be in world yet. We will re-add the packets to the bottom of the queue and process them later.
+						/*if (!m_playerRecentlyLogout)
+						{
+							//! Prevent infinite loop
+							if (!firstDelayedPacket)
+								firstDelayedPacket = packet;
+							//! Because checking a bool is faster than reallocating memory
+							deletePacket = false;
+							QueuePacket(packet);
+							//! Log
+							sLog->outDebug(LOG_FILTER_NETWORKIO, "Re-enqueueing packet with opcode %s (0x%.4X) with with status STATUS_LOGGEDIN. "
+								"Player is currently not in world yet.", opHandle.name, packet->GetOpcode());
+						}*/
+
+					}
+					else if (_player->IsInWorld() && opHandle.irPacketProcessing != PROCESS_DROP)
+					{
+						//sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+						(_sess->*opHandle.handler)(*packet);
+					}
+					// lag can cause STATUS_LOGGEDIN opcodes to arrive after the player started a transfer
+					break;
+				case STATUS_LOGGEDIN_OR_RECENTLY_LOGGOUT:
+					/*if (!_player && !m_playerRecentlyLogout)
+						LogUnexpectedOpcode(packet, "STATUS_LOGGEDIN_OR_RECENTLY_LOGGOUT",
+							"the player has not logged in yet and not recently logout");
+					else */if(opHandle.irPacketProcessing != PROCESS_DROP)
+					{
+						// not expected _player or must checked in packet handler
+						//sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+						(_sess->*opHandle.handler)(*packet);
+					}
+					break;
+				case STATUS_TRANSFER:
+					/*if (!_player)
+						LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player has not logged in yet");
+					else if (_player->IsInWorld())
+						LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player is still in world");
+					else */if(opHandle.irPacketProcessing != PROCESS_DROP)
+					{
+						(_sess->*opHandle.handler)(*packet);
+					}
+					break;
+				case STATUS_AUTHED:
+					// prevent cheating with skip queue wait
+					/*if (m_inQueue)
+					{
+						LogUnexpectedOpcode(packet, "STATUS_AUTHED", "the player not pass queue yet");
+						break;
+					}*/
+					if(opHandle.irPacketProcessing != PROCESS_DROP)
+					{
+						// single from authed time opcodes send in to after logout time
+						// and before other STATUS_LOGGEDIN_OR_RECENTLY_LOGGOUT opcodes.
+						/*if (packet->GetOpcode() != CMSG_SET_ACTIVE_VOICE_CHANNEL)
+							m_playerRecentlyLogout = false;*/
+
+						(_sess->*opHandle.handler)(*packet);
+					}
+					break;
+				case STATUS_NEVER:
+					/*sLog->outError("SESSION (account: %u, guidlow: %u, char: %s): received not allowed opcode %s (0x%.4X)",
+						GetAccountId(), m_GUIDLow, _player ? _player->GetName() : "<none>",
+						LookupOpcodeName(packet->GetOpcode()), packet->GetOpcode());*/
+					break;
+				case STATUS_UNHANDLED:
+					/*sLog->outDebug(LOG_FILTER_NETWORKIO, "SESSION (account: %u, guidlow: %u, char: %s): received not handled opcode %s (0x%.4X)",
+						GetAccountId(), m_GUIDLow, _player ? _player->GetName() : "<none>",
+						LookupOpcodeName(packet->GetOpcode()), packet->GetOpcode());*/
+					break;
+			}
+		}
+		catch(ByteBufferException &)
+		{
+			/*sLog->outError("WorldSession::Update ByteBufferException occured while parsing a packet (opcode: %u) from client %s, accountid=%i. Skipped packet.",
+					packet->GetOpcode(), GetRemoteAddress().c_str(), GetAccountId());
+			if (sLog->IsOutDebug())
+			{
+				sLog->outDebug(LOG_FILTER_NETWORKIO, "Dumping error causing packet:");
+				packet->hexlike();
+			}*/
+		}
+	}
+
+	//if (deletePacket)
+		delete packet;
 }
 
 void InterRealmClient::RegisterPlayerSession(uint64 guid, WorldSession* sess)

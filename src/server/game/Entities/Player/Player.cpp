@@ -2068,7 +2068,7 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
     // don't let gm level > 1 either
     if (!InBattleground() && mEntry->IsBattlegroundOrArena())
         return false;
-
+	
     // client without expansion support
     if (GetSession()->Expansion() < mEntry->Expansion())
     {
@@ -21772,7 +21772,13 @@ void Player::SetGroup(Group* group, int8 subgroup)
 void Player::SendInitialPacketsBeforeAddToMap()
 {
     /// Pass 'this' as argument because we're not stored in ObjectAccessor yet
-    GetSocial()->SendSocialList(this);
+    if(GetSession() && GetSession()->GetIRSocket())
+    {
+		WorldPacket packet(IR_SMSG_SEND_SOCIAL_LIST,8);
+		packet << (uint64)GetGUID();
+		GetSession()->GetIRSocket()->SendPacket(&packet);
+	}
+    //GetSocial()->SendSocialList(this);
 
     // guild bank list wtf?
 

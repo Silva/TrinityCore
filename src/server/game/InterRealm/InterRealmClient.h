@@ -64,6 +64,7 @@ class InterRealmClient: public ACE_Based::Runnable
 		 void SendPacket(WorldPacket const* packet);
 		 void SendTunneledPacket(uint64 playerGuid, WorldPacket const* packet);
 		 // WorldSessions
+		 void ProcessWorldSessionPacket(WorldSession* _sess, WorldPacket* packet);
 		 bool RemovePlayerSession(uint64 guid);
 	private:
 		void handlePacket(const char* buffer, int byteRecv);

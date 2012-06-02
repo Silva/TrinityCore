@@ -91,7 +91,7 @@ WorldSession::WorldSession(uint32 id, InterRealmClient* ir_socket, AccountTypes 
 m_muteTime(mute_time), m_timeOutTime(0), _player(NULL),
 _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
 m_inQueue(false), m_playerLoading(false), m_playerLogout(false),
-m_playerRecentlyLogout(false), m_playerSave(false),
+m_playerRecentlyLogout(false), m_playerSave(false), m_isinIRBG(true),
 m_sessionDbcLocale(sWorld->GetAvailableDbcLocale(locale)),
 m_sessionDbLocaleIndex(locale),
 m_latency(0), m_TutorialsChanged(false), recruiterId(recruiter),
@@ -115,13 +115,6 @@ WorldSession::~WorldSession()
 
     if (_warden)
         delete _warden;
-
-    ///- empty incoming packet queue
-    WorldPacket* packet = NULL;
-    while (_recvQueue.next(packet))
-        delete packet;
-
-    LoginDatabase.PExecute("UPDATE account SET online = 0 WHERE id = %u;", GetAccountId());     // One-time query
 }
 
 void WorldSession::SizeError(WorldPacket const& packet, uint32 size) const
@@ -178,11 +171,6 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
     /// Update Timeout timer.
     UpdateTimeOutTime(diff);
 
-    ///- Before we process anything:
-    /// If necessary, kick the player from the character select screen
-    /*if (IsConnectionIdle())
-        m_Socket->CloseSocket();*/
-
     ///- Retrieve packets from the receive queue and call the appropriate handlers
     /// not process packets if socket already closed
     WorldPacket* packet = NULL;
@@ -231,7 +219,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                             }
 
                         }
-                        else if (_player->IsInWorld())
+                        else if (_player->IsInWorld() && opHandle.irPacketProcessing != PROCESS_DROP)
                         {
                             //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
                             (this->*opHandle.handler)(*packet);
@@ -244,7 +232,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                         if (!_player && !m_playerRecentlyLogout)
                             LogUnexpectedOpcode(packet, "STATUS_LOGGEDIN_OR_RECENTLY_LOGGOUT",
                                 "the player has not logged in yet and not recently logout");
-                        else
+                        else if(opHandle.irPacketProcessing != PROCESS_DROP)
                         {
                             // not expected _player or must checked in packet handler
                             //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
@@ -258,7 +246,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                             LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player has not logged in yet");
                         else if (_player->IsInWorld())
                             LogUnexpectedOpcode(packet, "STATUS_TRANSFER", "the player is still in world");
-                        else
+                        else if(opHandle.irPacketProcessing != PROCESS_DROP)
                         {
                             //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
                             (this->*opHandle.handler)(*packet);
@@ -273,16 +261,18 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                             LogUnexpectedOpcode(packet, "STATUS_AUTHED", "the player not pass queue yet");
                             break;
                         }
+						if(opHandle.irPacketProcessing != PROCESS_DROP)
+						{
+							// single from authed time opcodes send in to after logout time
+							// and before other STATUS_LOGGEDIN_OR_RECENTLY_LOGGOUT opcodes.
+							if (packet->GetOpcode() != CMSG_SET_ACTIVE_VOICE_CHANNEL)
+								m_playerRecentlyLogout = false;
 
-                        // single from authed time opcodes send in to after logout time
-                        // and before other STATUS_LOGGEDIN_OR_RECENTLY_LOGGOUT opcodes.
-                        if (packet->GetOpcode() != CMSG_SET_ACTIVE_VOICE_CHANNEL)
-                            m_playerRecentlyLogout = false;
-
-                        //sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
-                        (this->*opHandle.handler)(*packet);
-                        if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
-                            LogUnprocessedTail(packet);
+							//sScriptMgr->OnPacketReceive(m_Socket, WorldPacket(*packet));
+							(this->*opHandle.handler)(*packet);
+							if (sLog->IsOutDebug() && packet->rpos() < packet->wpos())
+								LogUnprocessedTail(packet);
+						}
                         break;
                     case STATUS_NEVER:
                         sLog->outError("SESSION (account: %u, guidlow: %u, char: %s): received not allowed opcode %s (0x%.4X)",
@@ -475,10 +465,6 @@ void WorldSession::LogoutPlayer(bool Save)
             _player->GetGroup()->SendUpdate();
             _player->GetGroup()->ResetMaxEnchantingLevel();
         }
-
-        ///- Broadcast a logout message to the player's friends
-        sSocialMgr->SendFriendStatus(_player, FRIEND_OFFLINE, _player->GetGUIDLow(), true);
-        sSocialMgr->RemovePlayerSocial(_player->GetGUIDLow());
 
         // Call script hook before deletion
         sScriptMgr->OnPlayerLogout(GetPlayer());
@@ -1031,48 +1017,6 @@ void WorldSession::InitializeQueryCallbackParameters()
 void WorldSession::ProcessQueryCallbacks()
 {
     PreparedQueryResult result;
-
-    //! HandleCharEnumOpcode
-    if (_charEnumCallback.ready())
-    {
-        _charEnumCallback.get(result);
-        HandleCharEnum(result);
-        _charEnumCallback.cancel();
-    }
-
-    if (_charCreateCallback.IsReady())
-    {
-        _charCreateCallback.GetResult(result);
-        HandleCharCreateCallback(result, _charCreateCallback.GetParam());
-        // Don't call FreeResult() here, the callback handler will do that depending on the events in the callback chain
-    }
-
-    //! HandlePlayerLoginOpcode
-    if (_charLoginCallback.ready())
-    {
-        SQLQueryHolder* param;
-        _charLoginCallback.get(param);
-        HandlePlayerLogin((LoginQueryHolder*)param);
-        _charLoginCallback.cancel();
-    }
-
-    //! HandleAddFriendOpcode
-    if (_addFriendCallback.IsReady())
-    {
-        std::string param = _addFriendCallback.GetParam();
-        _addFriendCallback.GetResult(result);
-        HandleAddFriendOpcodeCallBack(result, param);
-        _addFriendCallback.FreeResult();
-    }
-
-    //- HandleCharRenameOpcode
-    if (_charRenameCallback.IsReady())
-    {
-        std::string param = _charRenameCallback.GetParam();
-        _charRenameCallback.GetResult(result);
-        HandleChangePlayerNameOpcodeCallBack(result, param);
-        _charRenameCallback.FreeResult();
-    }
 
     //- HandleCharAddIgnoreOpcode
     if (_addIgnoreCallback.ready())

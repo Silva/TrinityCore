@@ -1368,9 +1368,10 @@ enum PacketProcessing
 
 enum IRPacketProcessing
 {
-	PROCESS_LOCAL = 0,
-	PROCESS_FORWARD_IF_NEED = 1,
-	PROCESS_ALWAYS_FORWARD = 2
+	PROCESS_LOCAL 				= 0,
+	PROCESS_FORWARD_IF_NEED 	= 1,
+	PROCESS_ALWAYS_FORWARD 		= 2,
+	PROCESS_DROP 				= 3
 };
 
 class WorldPacket;

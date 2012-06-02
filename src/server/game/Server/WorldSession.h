@@ -253,6 +253,9 @@ class WorldSession
         uint8 Expansion() const { return m_expansion; }
 
         void InitWarden(BigNumber* k, std::string os);
+        
+        bool isInInterRealmBG() { return m_isinIRBG; }
+        void setInInterRealmBG(bool inIRBG) { m_isinIRBG = inIRBG; }
 
         /// Session in auth.queue currently
         void SetInQueue(bool state) { m_inQueue = state; }
@@ -391,6 +394,8 @@ class WorldSession
         // Recruit-A-Friend Handling
         uint32 GetRecruiterId() { return recruiterId; }
         bool IsARecruiter() { return isRecruiter; }
+        
+        InterRealmClient* GetIRSocket() { return m_ir_socket; }
 
     public:                                                 // opcodes handlers
 
@@ -471,7 +476,6 @@ class WorldSession
         void HandleSetSelectionOpcode(WorldPacket& recvPacket);
         void HandleStandStateChangeOpcode(WorldPacket& recvPacket);
         void HandleEmoteOpcode(WorldPacket& recvPacket);
-        void HandleContactListOpcode(WorldPacket& recvPacket);
         void HandleAddFriendOpcode(WorldPacket& recvPacket);
         void HandleAddFriendOpcodeCallBack(PreparedQueryResult result, std::string friendNote);
         void HandleDelFriendOpcode(WorldPacket& recvPacket);
@@ -977,6 +981,8 @@ class WorldSession
         bool isRecruiter;
         ACE_Based::LockedQueue<WorldPacket*, ACE_Thread_Mutex> _recvQueue;
         time_t timeLastWhoCommand;
+        
+        bool m_isinIRBG;
 };
 #endif
 /// @}

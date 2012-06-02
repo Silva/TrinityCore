@@ -35,6 +35,8 @@
 #include "DisableMgr.h"
 #include "Group.h"
 
+#include "InterRealmOpcodes.h"
+
 void WorldSession::HandleBattlemasterHelloOpcode(WorldPacket & recv_data)
 {
     uint64 guid;
@@ -348,13 +350,13 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket &recv_data)
 
     if (!sBattlemasterListStore.LookupEntry(bgTypeId_))
     {
-        sLog->outDebug(LOG_FILTER_BATTLEGROUND, "BattlegroundHandler: invalid bgtype (%u) with player (Name: %s, GUID: %u) received.", bgTypeId_, _player->GetName(), _player->GetGUIDLow());
+        sLog->outError("BattlegroundHandler: invalid bgtype (%u) with player (Name: %s, GUID: %u) received.", bgTypeId_, _player->GetName(), _player->GetGUIDLow());
         return;
     }
 
     if (!_player->InBattlegroundQueue())
     {
-        sLog->outDebug(LOG_FILTER_BATTLEGROUND, "BattlegroundHandler: Invalid CMSG_BATTLEFIELD_PORT received from player (Name: %s, GUID: %u), he is not in bg_queue.", _player->GetName(), _player->GetGUIDLow());
+        sLog->outError("BattlegroundHandler: Invalid CMSG_BATTLEFIELD_PORT received from player (Name: %s, GUID: %u), he is not in bg_queue.", _player->GetName(), _player->GetGUIDLow());
         return;
     }
 
@@ -390,7 +392,10 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket &recv_data)
     // expected bracket entry
     PvPDifficultyEntry const* bracketEntry = GetBattlegroundBracketByLevel(bg->GetMapId(), _player->getLevel());
     if (!bracketEntry)
+    {
+		sLog->outError("BattlegroundHandler: bracketEntry not found for map id %u and player level %u.", bg->GetMapId(), _player->getLevel());
         return;
+	}
 
     //some checks if player isn't cheating - it is not exactly cheating, but we cannot allow it
     if (action == 1 && ginfo.ArenaType == 0)
@@ -421,6 +426,15 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket &recv_data)
             if (!_player->IsInvitedForBattlegroundQueueType(bgQueueTypeId))
                 return;                                 // cheating?
 
+			// Set InterRealm BG for session to permit tunneling
+			if(_player->GetSession() && _player->GetSession()->GetIRSocket())
+			{
+				WorldPacket irpacket(IR_SMSG_PLAYER_ENTER_BG,8);
+				irpacket << uint64(_player->GetGUID());
+				_player->GetSession()->GetIRSocket()->SendPacket(&irpacket);
+				_player->GetSession()->setInInterRealmBG(true);
+			}
+				
             if (!_player->InBattleground())
                 _player->SetBattlegroundEntryPoint();
 
@@ -468,6 +482,14 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket &recv_data)
                     at->SaveToDB();
                 }
             }
+            if(_player->GetSession() && _player->GetSession()->GetIRSocket())
+			{
+				WorldPacket irpacket(IR_SMSG_PLAYER_LEAVE_BG,8);
+				irpacket << uint64(_player->GetGUID());
+				_player->GetSession()->GetIRSocket()->SendPacket(&irpacket);
+				_player->GetSession()->setInInterRealmBG(false);
+			};
+				
             _player->RemoveBattlegroundQueueId(bgQueueTypeId);  // must be called this way, because if you move this call to queue->removeplayer, it causes bugs
             sBattlegroundMgr->BuildBattlegroundStatusPacket(&data, bg, queueSlot, STATUS_NONE, 0, 0, 0);
             bgQueue.RemovePlayer(_player->GetGUID(), true);
